@@ -1,13 +1,26 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import type { Docente, FichaDocente } from "@/lib/docentes";
+import type { Docente, FichaDocente, BloqueHorario } from "@/lib/docentes";
 import {
   listarDocentesAction,
   obtenerFichaDocenteAction,
   actualizarDocenteAction,
   eliminarDocenteAction,
 } from "./actions";
+
+const DIAS_SEMANA = [
+  { valor: 1, etiqueta: "Lunes" },
+  { valor: 2, etiqueta: "Martes" },
+  { valor: 3, etiqueta: "Miércoles" },
+  { valor: 4, etiqueta: "Jueves" },
+  { valor: 5, etiqueta: "Viernes" },
+  { valor: 6, etiqueta: "Sábado" },
+];
+
+function nombreDia(diaSemana: number) {
+  return DIAS_SEMANA.find((d) => d.valor === diaSemana)?.etiqueta ?? "Día " + diaSemana;
+}
 
 const ESTADO_ESTILOS: Record<string, string> = {
   Activo: "bg-estado-puntual/10 text-estado-puntual",
@@ -79,6 +92,7 @@ function FichaPanel({
   const [telefono, setTelefono] = useState("");
   const [correo, setCorreo] = useState("");
   const [estatus, setEstatus] = useState("Activo");
+  const [bloques, setBloques] = useState<BloqueHorario[]>([]);
 
   useEffect(() => {
     setCargando(true);
@@ -92,12 +106,25 @@ function FichaPanel({
         setTelefono(res.data.telefono || "");
         setCorreo(res.data.correo || "");
         setEstatus(res.data.estatus);
+        setBloques(res.data.bloques);
       } else {
         setError(res.error);
       }
       setCargando(false);
     });
   }, [docenteId]);
+
+  function agregarBloque() {
+    setBloques((prev) => [...prev, { diaSemana: 1, horaInicio: "07:00", horaFin: "09:00", minutosTolerancia: 0 }]);
+  }
+
+  function actualizarBloque(indice: number, cambios: Partial<BloqueHorario>) {
+    setBloques((prev) => prev.map((b, i) => (i === indice ? { ...b, ...cambios } : b)));
+  }
+
+  function quitarBloque(indice: number) {
+    setBloques((prev) => prev.filter((_, i) => i !== indice));
+  }
 
   function guardar() {
     setError(null);
@@ -108,6 +135,7 @@ function FichaPanel({
         telefono,
         correo,
         estatus,
+        bloques,
       });
       if (!res.ok) {
         setError(res.error);
@@ -228,6 +256,96 @@ function FichaPanel({
                 <p className="text-xs text-gardner-gris/75">
                   {ficha.telefono || "Sin teléfono"} {ficha.correo ? `· ${ficha.correo}` : ""}
                 </p>
+              )}
+            </div>
+
+            <div>
+              <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-gardner-gris">
+                <span className="material-symbols-outlined text-[16px] text-gardner-gris/55">schedule</span>
+                Horario
+              </h3>
+
+              {!editando && bloques.length === 0 && (
+                <p className="text-xs text-gardner-gris/75">
+                  Tiempo completo — usa el horario institucional (Ajustes → Horario de docentes).
+                </p>
+              )}
+
+              {!editando && bloques.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  {bloques.map((b, i) => (
+                    <div
+                      key={b.id ?? i}
+                      className="flex items-center justify-between rounded-lg bg-gardner-neutro px-2.5 py-1.5 text-xs text-gardner-gris/80"
+                    >
+                      <span className="font-semibold">{nombreDia(b.diaSemana)}</span>
+                      <span>
+                        {b.horaInicio}–{b.horaFin}
+                      </span>
+                      <span className="text-gardner-gris/55">{b.minutosTolerancia} min tol.</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {editando && (
+                <div className="flex flex-col gap-2">
+                  <p className="text-[11px] text-gardner-gris/60">
+                    Deja sin bloques para tiempo completo. Agrega bloques solo si este docente entra y sale varias
+                    veces al día (por horas, huecos entre clases).
+                  </p>
+                  {bloques.map((b, i) => (
+                    <div key={i} className="flex flex-wrap items-center gap-1.5 rounded-lg border border-gardner-gris/15 p-2">
+                      <select
+                        value={b.diaSemana}
+                        onChange={(e) => actualizarBloque(i, { diaSemana: Number(e.target.value) })}
+                        className="rounded-lg border border-gardner-gris/25 px-1.5 py-1 text-xs"
+                      >
+                        {DIAS_SEMANA.map((d) => (
+                          <option key={d.valor} value={d.valor}>
+                            {d.etiqueta}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="time"
+                        value={b.horaInicio}
+                        onChange={(e) => actualizarBloque(i, { horaInicio: e.target.value })}
+                        className="rounded-lg border border-gardner-gris/25 px-1.5 py-1 text-xs"
+                      />
+                      <span className="text-gardner-gris/45">–</span>
+                      <input
+                        type="time"
+                        value={b.horaFin}
+                        onChange={(e) => actualizarBloque(i, { horaFin: e.target.value })}
+                        className="rounded-lg border border-gardner-gris/25 px-1.5 py-1 text-xs"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        max={120}
+                        title="Minutos de tolerancia"
+                        value={b.minutosTolerancia}
+                        onChange={(e) => actualizarBloque(i, { minutosTolerancia: Number(e.target.value) })}
+                        className="w-14 rounded-lg border border-gardner-gris/25 px-1.5 py-1 text-xs"
+                      />
+                      <button
+                        onClick={() => quitarBloque(i)}
+                        className="ml-auto rounded-full p-1 text-red-400 hover:bg-red-50 hover:text-red-500"
+                        title="Quitar bloque"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">delete</span>
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={agregarBloque}
+                    className="flex items-center gap-1 self-start rounded-lg px-2 py-1 text-xs font-semibold text-gardner-azul hover:bg-gardner-azul/10"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">add</span>
+                    Agregar bloque
+                  </button>
+                </div>
               )}
             </div>
 

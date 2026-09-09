@@ -5,9 +5,11 @@ import CalendarioClient from "./calendario/CalendarioClient";
 import UsuariosClient from "./usuarios/UsuariosClient";
 import CargarAlumnosClient from "./cargar-alumnos/CargarAlumnosClient";
 import CargarDocentesClient from "./cargar-docentes/CargarDocentesClient";
+import HorarioDocentesClient from "./horario-docentes/HorarioDocentesClient";
 
 const TABS = [
   { clave: "calendario", etiqueta: "Calendario escolar", icono: "calendar_month" },
+  { clave: "horario-docentes", etiqueta: "Horario de docentes", icono: "schedule" },
   { clave: "usuarios", etiqueta: "Usuarios y roles", icono: "manage_accounts" },
   { clave: "cargar-alumnos", etiqueta: "Cargar alumnos", icono: "person_add" },
   { clave: "cargar-docentes", etiqueta: "Cargar docentes", icono: "badge" },
@@ -45,6 +47,7 @@ export default function AjustesClient({ miPropioId }: { miPropioId: string }) {
 
       <div>
         {tab === "calendario" && <CalendarioClient />}
+        {tab === "horario-docentes" && <HorarioDocentesClient />}
         {tab === "usuarios" && <UsuariosClient miPropioId={miPropioId} />}
         {tab === "cargar-alumnos" && <CargarAlumnosClient />}
         {tab === "cargar-docentes" && <CargarDocentesClient />}

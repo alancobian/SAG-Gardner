@@ -22,6 +22,20 @@ function fechaComoTexto(fecha: Date): string {
   const dia = String(fecha.getUTCDate()).padStart(2, "0");
   return `${anio}-${mes}-${dia}`;
 }
+// Las columnas "time" de Postgres llegan via PostgREST como texto plano
+// "HH:MM:SS" (no como fecha completa), asi que se parsean directo en vez de
+// pasar por `new Date(...)` (que produce Invalid Date con solo una hora).
+function minutosDesdeTexto(horaTexto: string): number {
+  const [horas, minutos] = horaTexto.split(":").map(Number);
+  return horas * 60 + (minutos || 0);
+}
+// getUTCDay() sobre la fecha ya desplazada a hora de Mexico (ver horaLocalMx)
+// da el dia de la semana correcto en horario local: 0=Domingo, 1=Lunes ...
+// 6=Sabado -- coincide exactamente con dia_semana en bloques_horario_docentes
+// (1=Lunes...6=Sabado); domingo (0) nunca hace match con ningun bloque.
+function diaSemanaMx(fecha: Date): number {
+  return fecha.getUTCDay();
+}
 
 export type ResultadoEscaneo =
   | "entrada"
@@ -58,6 +72,8 @@ type DocenteEscaneoRow = {
 
 type RegistroAsistenciaRow = { id: string; hora_salida: string | null };
 type HorarioRetardoRow = { hora_entrada: string; minutos_tolerancia: number | null };
+type BloqueHorarioEscaneoRow = { id: string; hora_inicio: string; hora_fin: string; minutos_tolerancia: number | null };
+type RegistroDocenteHoyRow = { id: string; hora_entrada: string; hora_salida: string | null };
 
 async function procesarEscaneoAlumno(alumno: AlumnoEscaneoRow, usuarioId: string): Promise<RespuestaEscaneo> {
   const grupoTexto = alumno.grupo ? alumno.grupo.nombre : null;
@@ -92,8 +108,7 @@ async function procesarEscaneoAlumno(alumno: AlumnoEscaneoRow, usuarioId: string
     const horarios = await supaGet<HorarioRetardoRow>("horarios_retardo", eqP("grupo_id", alumno.grupo.id));
     if (horarios.length > 0) {
       const horario = horarios[0];
-      const horaEntradaProgramada = new Date(horario.hora_entrada);
-      const minutosProgramados = minutosDesdeMedianoche(horaEntradaProgramada);
+      const minutosProgramados = minutosDesdeTexto(horario.hora_entrada);
       const minutosTolerancia = horario.minutos_tolerancia || 0;
       const minutosReales = minutosDesdeMedianoche(ahoraMx);
       if (minutosReales > minutosProgramados + minutosTolerancia) {
@@ -114,6 +129,17 @@ async function procesarEscaneoAlumno(alumno: AlumnoEscaneoRow, usuarioId: string
   return { resultado: "entrada", estatus: estatusEntrada, tipoPersona: "alumno", persona };
 }
 
+// Un docente sin bloques configurados para el dia de hoy se trata como
+// "tiempo completo": una sola sesion entrada/salida al dia, evaluada contra
+// el horario institucional (horario_retardo_docentes) -- exactamente el
+// comportamiento de siempre, sin cambios. Un docente CON bloques hoy puede
+// tener hasta tantas sesiones de entrada/salida como bloques tenga ese dia
+// (por ejemplo: entra 7-9am, sale en un hueco libre, y regresa a las 11am
+// para su siguiente bloque). Cada regreso se evalua contra la hora_inicio
+// del bloque que le corresponde cronologicamente (el bloque N-esimo, donde N
+// es el numero de sesiones ya completadas ese dia), para poder marcar
+// "Retardo" si regresa tarde de un hueco -- no solo en la entrada de la
+// mañana.
 async function procesarEscaneoDocente(docente: DocenteEscaneoRow, usuarioId: string): Promise<RespuestaEscaneo> {
   const persona = { nombre: docente.nombre, foto: docente.foto_url || null, grupo: docente.nivel_academico || null };
 
@@ -123,35 +149,81 @@ async function procesarEscaneoDocente(docente: DocenteEscaneoRow, usuarioId: str
 
   const ahoraMx = horaLocalMx();
   const fechaHoy = fechaComoTexto(ahoraMx);
-  const registrosHoy = await supaGet<RegistroAsistenciaRow>(
-    "asistencia_docentes",
-    qs([eqP("docente_id", docente.id), eqP("fecha", fechaHoy)])
+
+  const bloquesHoy = await supaGet<BloqueHorarioEscaneoRow>(
+    "bloques_horario_docentes",
+    qs([eqP("docente_id", docente.id), eqP("dia_semana", String(diaSemanaMx(ahoraMx))), "order=hora_inicio.asc"])
   );
 
-  if (registrosHoy.length > 0 && registrosHoy[0].hora_salida) {
-    return { resultado: "ya_completo", tipoPersona: "docente", persona };
+  if (bloquesHoy.length === 0) {
+    // Tiempo completo: comportamiento identico al de siempre.
+    const registrosHoy = await supaGet<RegistroAsistenciaRow>(
+      "asistencia_docentes",
+      qs([eqP("docente_id", docente.id), eqP("fecha", fechaHoy)])
+    );
+
+    if (registrosHoy.length > 0 && registrosHoy[0].hora_salida) {
+      return { resultado: "ya_completo", tipoPersona: "docente", persona };
+    }
+
+    if (registrosHoy.length > 0) {
+      const registro = registrosHoy[0];
+      await supaUpdate("asistencia_docentes", eqP("id", registro.id), {
+        hora_salida: ahoraMx,
+        registrado_por_salida_id: usuarioId,
+      });
+      return { resultado: "salida", tipoPersona: "docente", persona };
+    }
+
+    let estatusEntrada: "Puntual" | "Retardo" = "Puntual";
+    const horarios = await supaGet<HorarioRetardoRow>("horario_retardo_docentes", "limit=1");
+    if (horarios.length > 0) {
+      const horario = horarios[0];
+      const minutosProgramados = minutosDesdeTexto(horario.hora_entrada);
+      const minutosTolerancia = horario.minutos_tolerancia || 0;
+      const minutosReales = minutosDesdeMedianoche(ahoraMx);
+      if (minutosReales > minutosProgramados + minutosTolerancia) {
+        estatusEntrada = "Retardo";
+      }
+    }
+
+    await supaInsert("asistencia_docentes", {
+      docente_id: docente.id,
+      fecha: fechaHoy,
+      hora_entrada: ahoraMx,
+      estatus: estatusEntrada,
+      registrado_por_entrada_id: usuarioId,
+    });
+
+    return { resultado: "entrada", estatus: estatusEntrada, tipoPersona: "docente", persona };
   }
 
-  if (registrosHoy.length > 0) {
-    const registro = registrosHoy[0];
-    await supaUpdate("asistencia_docentes", eqP("id", registro.id), {
+  // Docente con bloques hoy: soporte multi-sesion.
+  const registrosHoy = await supaGet<RegistroDocenteHoyRow>(
+    "asistencia_docentes",
+    qs([eqP("docente_id", docente.id), eqP("fecha", fechaHoy), "order=hora_entrada.asc"])
+  );
+
+  const sesionAbierta = registrosHoy.find((r) => !r.hora_salida);
+  if (sesionAbierta) {
+    await supaUpdate("asistencia_docentes", eqP("id", sesionAbierta.id), {
       hora_salida: ahoraMx,
       registrado_por_salida_id: usuarioId,
     });
     return { resultado: "salida", tipoPersona: "docente", persona };
   }
 
+  if (registrosHoy.length >= bloquesHoy.length) {
+    return { resultado: "ya_completo", tipoPersona: "docente", persona };
+  }
+
+  const bloqueCorrespondiente = bloquesHoy[registrosHoy.length];
   let estatusEntrada: "Puntual" | "Retardo" = "Puntual";
-  const horarios = await supaGet<HorarioRetardoRow>("horario_retardo_docentes", "limit=1");
-  if (horarios.length > 0) {
-    const horario = horarios[0];
-    const horaEntradaProgramada = new Date(horario.hora_entrada);
-    const minutosProgramados = minutosDesdeMedianoche(horaEntradaProgramada);
-    const minutosTolerancia = horario.minutos_tolerancia || 0;
-    const minutosReales = minutosDesdeMedianoche(ahoraMx);
-    if (minutosReales > minutosProgramados + minutosTolerancia) {
-      estatusEntrada = "Retardo";
-    }
+  const minutosProgramados = minutosDesdeTexto(bloqueCorrespondiente.hora_inicio);
+  const minutosTolerancia = bloqueCorrespondiente.minutos_tolerancia || 0;
+  const minutosReales = minutosDesdeMedianoche(ahoraMx);
+  if (minutosReales > minutosProgramados + minutosTolerancia) {
+    estatusEntrada = "Retardo";
   }
 
   await supaInsert("asistencia_docentes", {

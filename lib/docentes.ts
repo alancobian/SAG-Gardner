@@ -2,7 +2,7 @@
 // asistencia del dia -- eso lo cubre la seccion Asistencia), get_fichaDocente,
 // post_actualizarDocente y post_eliminarDocente (http-functions-supabase.js).
 
-import { supaGet, supaUpdate, supaDelete, eqP, qs } from "./supabaseAdmin";
+import { supaGet, supaInsert, supaUpdate, supaDelete, eqP, qs } from "./supabaseAdmin";
 
 export type Docente = {
   id: string;
@@ -34,6 +34,29 @@ export async function listarDocentes(): Promise<Docente[]> {
   }));
 }
 
+// Un docente sin bloques configurados se trata como "tiempo completo": usa
+// el horario institucional (lib/horarios.ts) y solo puede tener una sesion
+// de entrada/salida por dia (comportamiento igual al de siempre). Un docente
+// CON bloques puede tener tantas sesiones al dia como bloques tenga -- por
+// ejemplo, entra 7-9am, sale en un hueco libre, y regresa a las 11am para su
+// siguiente bloque; el retardo de ese segundo regreso se evalua contra la
+// hora_inicio del bloque correspondiente (ver lib/escaneo.ts).
+export type BloqueHorario = {
+  id?: string;
+  diaSemana: number; // 1=Lunes ... 6=Sabado
+  horaInicio: string; // "HH:MM"
+  horaFin: string; // "HH:MM"
+  minutosTolerancia: number;
+};
+
+type BloqueHorarioRow = {
+  id: string;
+  dia_semana: number;
+  hora_inicio: string;
+  hora_fin: string;
+  minutos_tolerancia: number | null;
+};
+
 export type FichaDocente = {
   id: string;
   nombre: string;
@@ -43,6 +66,7 @@ export type FichaDocente = {
   estatus: string;
   codigoQr: string;
   foto: string | null;
+  bloques: BloqueHorario[];
   historial: { fecha: string; estatus: string; horaEntrada: string | null; horaSalida: string | null }[];
   stats: { totalRegistros: number; totalRetardos: number };
 };
@@ -70,10 +94,16 @@ export async function obtenerFichaDocente(docenteId: string): Promise<FichaDocen
   if (rows.length === 0) return null;
   const docente = rows[0];
 
-  const historial = await supaGet<RegistroDocenteRow>(
-    "asistencia_docentes",
-    qs([eqP("docente_id", docente.id), "order=fecha.desc", "limit=60"])
-  );
+  const [historial, bloquesRows] = await Promise.all([
+    supaGet<RegistroDocenteRow>(
+      "asistencia_docentes",
+      qs([eqP("docente_id", docente.id), "order=fecha.desc", "limit=60"])
+    ),
+    supaGet<BloqueHorarioRow>(
+      "bloques_horario_docentes",
+      qs([eqP("docente_id", docente.id), "order=dia_semana.asc,hora_inicio.asc"])
+    ),
+  ]);
 
   return {
     id: docente.id,
@@ -84,6 +114,13 @@ export async function obtenerFichaDocente(docenteId: string): Promise<FichaDocen
     estatus: docente.estatus,
     codigoQr: docente.codigo_qr,
     foto: docente.foto_url || null,
+    bloques: bloquesRows.map((b) => ({
+      id: b.id,
+      diaSemana: b.dia_semana,
+      horaInicio: b.hora_inicio.slice(0, 5),
+      horaFin: b.hora_fin.slice(0, 5),
+      minutosTolerancia: b.minutos_tolerancia ?? 0,
+    })),
     historial: historial.map((h) => ({
       fecha: h.fecha,
       estatus: h.estatus,
@@ -103,6 +140,7 @@ export type DatosEdicionDocente = {
   telefono?: string;
   correo?: string;
   estatus?: string;
+  bloques?: BloqueHorario[];
 };
 
 export async function actualizarDocente(docenteId: string, datos: DatosEdicionDocente): Promise<void> {
@@ -118,11 +156,29 @@ export async function actualizarDocente(docenteId: string, datos: DatosEdicionDo
   if (Object.keys(patch).length > 0) {
     await supaUpdate("docentes", eqP("id", docenteId), patch);
   }
+
+  // Reemplazo total de los bloques (igual que los tutores en lib/alumnos.ts):
+  // se borran los existentes y se insertan los nuevos tal como vienen del
+  // formulario. Un array vacio significa "volver a tiempo completo" (sin
+  // bloques, usa el horario institucional).
+  if (datos.bloques) {
+    await supaDelete("bloques_horario_docentes", eqP("docente_id", docenteId));
+    for (const b of datos.bloques) {
+      await supaInsert("bloques_horario_docentes", {
+        docente_id: docenteId,
+        dia_semana: b.diaSemana,
+        hora_inicio: b.horaInicio,
+        hora_fin: b.horaFin,
+        minutos_tolerancia: b.minutosTolerancia,
+      });
+    }
+  }
 }
 
 export async function eliminarDocente(docenteId: string): Promise<void> {
   const existentes = await supaGet("docentes", eqP("id", docenteId));
   if (existentes.length === 0) throw new Error("Docente no encontrado");
   await supaDelete("asistencia_docentes", eqP("docente_id", docenteId));
+  await supaDelete("bloques_horario_docentes", eqP("docente_id", docenteId));
   await supaDelete("docentes", eqP("id", docenteId));
 }
