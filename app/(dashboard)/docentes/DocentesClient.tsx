@@ -153,7 +153,7 @@ function FichaPanel({
 
         {ficha && !cargando && (
           <div className="flex flex-col gap-5 px-5 pb-5">
-            <div className="-mt-12 flex flex-col items-center gap-2 text-center">
+            <div className="pt-3 flex flex-col items-center gap-2 text-center">
               <div className="rounded-full bg-white p-1.5 shadow-md">
                 <Iniciales nombre={ficha.nombre} size={22} />
               </div>

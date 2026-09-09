@@ -111,7 +111,7 @@ function PanelDetalle({
 
         {ficha && !cargando && (
           <div className="flex flex-col gap-6 px-6 pb-6">
-            <div className="-mt-14 flex flex-col items-center gap-2 text-center">
+            <div className="pt-3 flex flex-col items-center gap-2 text-center">
               <div className="rounded-full bg-white p-1.5 shadow-md">
                 <Iniciales nombre={ficha.nombre} anillo={ESTADO_ANILLO[ficha.estatus]} size={24} />
               </div>
