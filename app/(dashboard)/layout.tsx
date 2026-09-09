@@ -1,28 +1,34 @@
 import { redirect } from "next/navigation";
 import { obtenerSesion } from "@/lib/auth";
 import Sidebar from "./Sidebar";
+import MenuButton from "./MenuButton";
+import { SidebarProvider } from "./SidebarContext";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const sesion = await obtenerSesion();
   if (!sesion) redirect("/login");
 
   return (
+    <SidebarProvider>
     <div className="flex min-h-screen w-full bg-gardner-neutro">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-black/5 bg-white px-6 py-3">
-          <div className="hidden items-center sm:flex">
-            <div className="relative w-72">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-gardner-gris/60">
-                search
-              </span>
-              <input
-                type="text"
-                placeholder="Buscar (próximamente)…"
-                disabled
-                title="El buscador global todavía no está conectado"
-                className="w-full cursor-not-allowed rounded-lg border-none bg-gardner-neutro py-2 pl-10 pr-3 text-sm text-gardner-gris outline-none placeholder:text-gardner-gris/50"
-              />
+          <div className="flex items-center gap-2">
+            <MenuButton />
+            <div className="hidden items-center sm:flex">
+              <div className="relative w-72">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-gardner-gris/60">
+                  search
+                </span>
+                <input
+                  type="text"
+                  placeholder="Buscar (próximamente)…"
+                  disabled
+                  title="El buscador global todavía no está conectado"
+                  className="w-full cursor-not-allowed rounded-lg border-none bg-gardner-neutro py-2 pl-10 pr-3 text-sm text-gardner-gris outline-none placeholder:text-gardner-gris/50"
+                />
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -51,5 +57,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>
+    </SidebarProvider>
   );
 }
