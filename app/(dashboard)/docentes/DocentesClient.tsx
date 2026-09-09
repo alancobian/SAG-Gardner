@@ -33,7 +33,11 @@ function Iniciales({ nombre, size = 10 }: { nombre: string; size?: number }) {
   return (
     <div
       className="flex shrink-0 items-center justify-center rounded-full bg-gardner-azul font-bold text-white"
-      style={{ width: `${size * 4}px`, height: `${size * 4}px`, fontSize: size >= 14 ? "1.25rem" : "0.875rem" }}
+      style={{
+        width: `${size * 4}px`,
+        height: `${size * 4}px`,
+        fontSize: size >= 20 ? "1.75rem" : size >= 14 ? "1.25rem" : "0.875rem",
+      }}
     >
       {iniciales}
     </div>
@@ -135,7 +139,7 @@ function FichaPanel({
         onClick={(e) => e.stopPropagation()}
       >
         <div
-          className="relative flex min-h-24 shrink-0 items-start justify-between px-5 py-4"
+          className="relative flex h-20 shrink-0 items-start justify-between px-5 py-4"
           style={{ background: "linear-gradient(135deg, #007dc4 0%, #005386 100%)" }}
         >
           <h2 className="text-sm font-semibold text-white/90">Ficha del docente</h2>
@@ -149,19 +153,19 @@ function FichaPanel({
 
         {ficha && !cargando && (
           <div className="flex flex-col gap-5 px-5 pb-5">
-            <div className="-mt-8 flex flex-col items-start gap-2">
-              <div className="rounded-full bg-white p-1 shadow-md">
-                <Iniciales nombre={ficha.nombre} size={16} />
+            <div className="-mt-12 flex flex-col items-center gap-2 text-center">
+              <div className="rounded-full bg-white p-1.5 shadow-md">
+                <Iniciales nombre={ficha.nombre} size={22} />
               </div>
-              <div className="w-full pt-1">
+              <div className="flex w-full flex-col items-center">
                 {editando ? (
                   <input
                     value={nombre}
                     onChange={(e) => setNombre(e.target.value)}
-                    className="w-full rounded-lg border border-gardner-gris/25 px-2 py-1 text-sm font-semibold"
+                    className="w-full max-w-xs rounded-lg border border-gardner-gris/25 px-2 py-1 text-center text-base font-semibold"
                   />
                 ) : (
-                  <p className="break-words font-semibold leading-snug text-gardner-gris">{ficha.nombre}</p>
+                  <p className="break-words text-xl font-bold leading-snug text-gardner-gris">{ficha.nombre}</p>
                 )}
                 {editando ? (
                   <select
@@ -176,12 +180,12 @@ function FichaPanel({
                     <option value="Preparatoria">Preparatoria</option>
                   </select>
                 ) : (
-                  <p className="text-xs text-gardner-gris/65">{ficha.nivelAcademico}</p>
+                  <p className="text-sm text-gardner-gris/65">{ficha.nivelAcademico}</p>
                 )}
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center gap-2">
               <span className="text-xs font-semibold text-gardner-gris/75">Estatus:</span>
               {editando ? (
                 <select
@@ -198,7 +202,6 @@ function FichaPanel({
                   {ficha.estatus}
                 </span>
               )}
-              <span className="ml-auto text-xs text-gardner-gris/55">{ficha.codigoQr}</span>
             </div>
 
             <div>

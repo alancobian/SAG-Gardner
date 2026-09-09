@@ -32,7 +32,11 @@ function Iniciales({ nombre, anillo, size = 10 }: { nombre: string; anillo?: str
       className={`flex shrink-0 items-center justify-center rounded-full bg-gardner-azul font-bold text-white ring-2 ring-offset-2 ${
         anillo ?? "ring-transparent"
       }`}
-      style={{ width: `${size * 4}px`, height: `${size * 4}px`, fontSize: size >= 14 ? "1.25rem" : size >= 10 ? "0.875rem" : "0.75rem" }}
+      style={{
+        width: `${size * 4}px`,
+        height: `${size * 4}px`,
+        fontSize: size >= 20 ? "1.75rem" : size >= 14 ? "1.25rem" : size >= 10 ? "0.875rem" : "0.75rem",
+      }}
     >
       {iniciales}
     </div>
@@ -82,7 +86,7 @@ function PanelDetalle({
         onClick={(e) => e.stopPropagation()}
       >
         <div
-          className="relative flex min-h-24 shrink-0 items-start justify-between px-6 py-4"
+          className="relative flex h-20 shrink-0 items-start justify-between px-6 py-4"
           style={{ background: "linear-gradient(135deg, #007dc4 0%, #005386 100%)" }}
         >
           <h2 className="text-sm font-semibold text-white/90">Ficha del alumno</h2>
@@ -107,19 +111,19 @@ function PanelDetalle({
 
         {ficha && !cargando && (
           <div className="flex flex-col gap-6 px-6 pb-6">
-            <div className="-mt-8 flex flex-col items-start gap-2">
-              <div className="rounded-full bg-white p-1 shadow-md">
-                <Iniciales nombre={ficha.nombre} anillo={ESTADO_ANILLO[ficha.estatus]} size={18} />
+            <div className="-mt-14 flex flex-col items-center gap-2 text-center">
+              <div className="rounded-full bg-white p-1.5 shadow-md">
+                <Iniciales nombre={ficha.nombre} anillo={ESTADO_ANILLO[ficha.estatus]} size={24} />
               </div>
               <div>
-                <p className="break-words text-lg font-semibold leading-snug text-gardner-gris">{ficha.nombre}</p>
-                <p className="text-sm text-gardner-gris/65">
+                <p className="break-words text-2xl font-bold leading-snug text-gardner-gris">{ficha.nombre}</p>
+                <p className="text-base text-gardner-gris/65">
                   {ficha.grupo ? `${ficha.grupo.nombre} · ${ficha.grupo.nivelAcademico}` : "Sin grupo"}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center gap-2">
               <span className="text-xs font-semibold text-gardner-gris/75">Estatus:</span>
               <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ESTADO_ESTILOS[ficha.estatus] ?? "bg-black/5"}`}>
                 {ficha.estatus}
