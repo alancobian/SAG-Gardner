@@ -14,7 +14,13 @@ const calibri = localFont({
   display: "swap",
 });
 
+// metadataBase resuelve las URLs absolutas de favicon/og:image (app/icon.png,
+// app/apple-icon.png, app/opengraph-image.png -- convencion de archivos de
+// Next.js, se detectan solos sin declararlos aqui). Sin esto, apps como
+// WhatsApp que leen el HTML sin ejecutar JS pueden no armar bien la URL de
+// la vista previa.
 export const metadata: Metadata = {
+  metadataBase: new URL("https://sag.institutogardner.edu.mx"),
   title: "SAG · Sistema de Acceso Gardner",
   description: "Panel administrativo del Sistema de Acceso Gardner",
 };

@@ -4,10 +4,21 @@ import { verificarTokenSesion, SESSION_COOKIE } from "@/lib/session";
 // Rutas que no requieren sesion activa.
 const RUTAS_PUBLICAS = ["/login", "/api/login"];
 
+// Archivos de icono/OG generados por la convencion de Next.js (app/icon.png,
+// app/apple-icon.png, app/opengraph-image.png, app/favicon.ico). Deben ser
+// publicos: los lee el navegador (favicon) y bots externos sin sesion
+// (WhatsApp, etc.) para armar la vista previa del enlace.
+const ARCHIVOS_ICONO_PUBLICOS = ["/favicon.ico", "/icon.png", "/apple-icon.png", "/opengraph-image.png"];
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname.startsWith("/_next") || pathname.startsWith("/img") || pathname.startsWith("/fonts")) {
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/img") ||
+    pathname.startsWith("/fonts") ||
+    ARCHIVOS_ICONO_PUBLICOS.includes(pathname)
+  ) {
     return NextResponse.next();
   }
 
