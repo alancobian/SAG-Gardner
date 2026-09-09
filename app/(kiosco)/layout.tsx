@@ -1,9 +1,10 @@
 // Shell independiente para los puntos de acceso físicos (tablets/kioscos en
 // la entrada). A diferencia de (dashboard), no incluye el Sidebar ni el
 // resto de la navegación administrativa -- solo lo necesario para operar la
-// pantalla de escaneo en pantalla completa. Se sirve normalmente desde el
-// dominio dedicado acceso.institutogardner.edu.mx (ver middleware.ts), pero
-// también responde en /escaneo dentro del dominio principal.
+// pantalla de escaneo en pantalla completa. Se sirve en
+// sag.institutogardner.edu.mx/escaneo; el aislamiento para el personal de
+// los puntos de acceso se logra con el rol "Portería" (ver middleware.ts),
+// que solo puede llegar a esta ruta sin importar qué otra URL intente abrir.
 
 import Image from "next/image";
 import { redirect } from "next/navigation";
