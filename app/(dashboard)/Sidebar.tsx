@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 type Item = { id: string; label: string; href: string; icono: string };
 
 const ITEMS: Item[] = [
+  { id: "escaneo", label: "Escaneo", href: "/escaneo", icono: "qr_code_scanner" },
   { id: "asistencia", label: "Asistencia", href: "/asistencia", icono: "calendar_today" },
   { id: "grupos-alumnos", label: "Grupos y Alumnos", href: "/grupos-alumnos", icono: "groups" },
   { id: "docentes", label: "Docentes", href: "/docentes", icono: "badge" },
