@@ -154,13 +154,24 @@ function FichaAlumnoDetalle({
         <div className="flex-1 overflow-y-auto p-6">
           <div className="flex flex-col gap-5">
             <div className="flex items-center gap-3">
-              <div
-                className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gardner-azul text-base font-bold text-white ring-2 ring-offset-2 ${
-                  ESTADO_ANILLO[ficha.estatus] ?? "ring-transparent"
-                }`}
-              >
-                {iniciales(ficha.nombre)}
-              </div>
+              {ficha.foto ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={ficha.foto}
+                  alt={ficha.nombre}
+                  className={`h-14 w-14 shrink-0 rounded-full object-cover ring-2 ring-offset-2 ${
+                    ESTADO_ANILLO[ficha.estatus] ?? "ring-transparent"
+                  }`}
+                />
+              ) : (
+                <div
+                  className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gardner-azul text-base font-bold text-white ring-2 ring-offset-2 ${
+                    ESTADO_ANILLO[ficha.estatus] ?? "ring-transparent"
+                  }`}
+                >
+                  {iniciales(ficha.nombre)}
+                </div>
+              )}
               <div>
                 <p className="font-semibold text-gardner-gris">{ficha.nombre}</p>
                 <p className="text-xs font-medium text-gardner-gris/60">
@@ -282,13 +293,24 @@ function PanelAlumnos({
                     className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-gardner-azul/5"
                   >
                     <div className="flex items-center gap-3">
-                      <div
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gardner-azul text-sm font-bold text-white ring-2 ring-offset-2 ${
-                          ESTADO_ANILLO[a.estatus] ?? "ring-transparent"
-                        }`}
-                      >
-                        {iniciales(a.nombre)}
-                      </div>
+                      {a.foto ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={a.foto}
+                          alt={a.nombre}
+                          className={`h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-offset-2 ${
+                            ESTADO_ANILLO[a.estatus] ?? "ring-transparent"
+                          }`}
+                        />
+                      ) : (
+                        <div
+                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gardner-azul text-sm font-bold text-white ring-2 ring-offset-2 ${
+                            ESTADO_ANILLO[a.estatus] ?? "ring-transparent"
+                          }`}
+                        >
+                          {iniciales(a.nombre)}
+                        </div>
+                      )}
                       <div>
                         <p className="text-sm font-semibold text-gardner-gris">{a.nombre}</p>
                         {hora && <p className="text-xs font-medium text-gardner-gris/50">Entrada: {hora}</p>}

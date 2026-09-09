@@ -16,6 +16,7 @@ type Alumno = {
   id: string;
   nombre: string;
   estatus: string;
+  foto_url: string | null;
   grupo: Grupo | null;
 };
 
@@ -38,6 +39,7 @@ export type AlumnoReporte = {
   estatus: "Puntual" | "Retardo" | "Ausente" | string;
   horaEntrada: string | null;
   horaSalida: string | null;
+  foto: string | null;
 };
 
 export type GrupoReporte = {
@@ -128,7 +130,9 @@ export async function obtenerReporteDiario(fechaParam?: string): Promise<Reporte
     else if (estatus === "Retardo") totalRetardo++;
     else totalAusente++;
 
-    gruposMap.get(grupoId)!.alumnos.push({ id: alumno.id, nombre: alumno.nombre, estatus, horaEntrada, horaSalida });
+    gruposMap
+      .get(grupoId)!
+      .alumnos.push({ id: alumno.id, nombre: alumno.nombre, estatus, horaEntrada, horaSalida, foto: alumno.foto_url || null });
   });
 
   const grupos = Array.from(gruposMap.values()).sort((a, b) => {

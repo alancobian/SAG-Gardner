@@ -397,9 +397,23 @@ export default function EscaneoClient() {
             } ${ESTILO_RESULTADO[resultado.resultado].color}`}
             onClick={(e) => e.stopPropagation()}
           >
-            <span className="material-symbols-outlined text-[56px]">
-              {ESTILO_RESULTADO[resultado.resultado].icono}
-            </span>
+            {resultado.persona?.foto ? (
+              <div className="relative mx-auto h-24 w-24">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={resultado.persona.foto}
+                  alt={resultado.persona.nombre}
+                  className="h-24 w-24 rounded-full object-cover ring-4 ring-white/50"
+                />
+                <span className="material-symbols-outlined absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-white text-[20px] shadow">
+                  {ESTILO_RESULTADO[resultado.resultado].icono}
+                </span>
+              </div>
+            ) : (
+              <span className="material-symbols-outlined text-[56px]">
+                {ESTILO_RESULTADO[resultado.resultado].icono}
+              </span>
+            )}
             <p className="mt-2 text-lg font-bold">{ESTILO_RESULTADO[resultado.resultado].titulo(resultado)}</p>
             {resultado.persona && (
               <>

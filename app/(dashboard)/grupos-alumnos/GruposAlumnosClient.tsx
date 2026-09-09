@@ -20,21 +20,36 @@ const ESTADO_ANILLO: Record<string, string> = {
 
 const ORDEN_NIVEL = ["Preescolar", "Primaria", "Secundaria", "Preparatoria"];
 
-function Iniciales({ nombre, anillo, size = 10 }: { nombre: string; anillo?: string; size?: number }) {
+// Muestra la foto real del alumno cuando existe (foto_url); si no hay foto
+// cargada todavía, cae de vuelta al círculo de iniciales de siempre -- así
+// convive sin problema con alumnos que aún no tienen foto en el sistema.
+function Iniciales({ nombre, anillo, size = 10, foto }: { nombre: string; anillo?: string; size?: number; foto?: string | null }) {
   const iniciales = nombre
     .split(" ")
     .map((p) => p[0])
     .slice(0, 2)
     .join("")
     .toUpperCase();
+  const dimension = `${size * 4}px`;
+  if (foto) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={foto}
+        alt={nombre}
+        className={`shrink-0 rounded-full object-cover ring-2 ring-offset-2 ${anillo ?? "ring-transparent"}`}
+        style={{ width: dimension, height: dimension }}
+      />
+    );
+  }
   return (
     <div
       className={`flex shrink-0 items-center justify-center rounded-full bg-gardner-azul font-bold text-white ring-2 ring-offset-2 ${
         anillo ?? "ring-transparent"
       }`}
       style={{
-        width: `${size * 4}px`,
-        height: `${size * 4}px`,
+        width: dimension,
+        height: dimension,
         fontSize: size >= 20 ? "1.75rem" : size >= 14 ? "1.25rem" : size >= 10 ? "0.875rem" : "0.75rem",
       }}
     >
@@ -113,7 +128,7 @@ function PanelDetalle({
           <div className="flex flex-col gap-6 px-6 pb-6">
             <div className="pt-3 flex flex-col items-center gap-2 text-center">
               <div className="rounded-full bg-white p-1.5 shadow-md">
-                <Iniciales nombre={ficha.nombre} anillo={ESTADO_ANILLO[ficha.estatus]} size={24} />
+                <Iniciales nombre={ficha.nombre} anillo={ESTADO_ANILLO[ficha.estatus]} size={24} foto={ficha.foto} />
               </div>
               <div>
                 <p className="break-words text-2xl font-bold leading-snug text-gardner-gris">{ficha.nombre}</p>
@@ -408,7 +423,7 @@ export default function GruposAlumnosClient({ puedeEditar }: { puedeEditar: bool
                     : "border-gardner-gris/15 hover:border-gardner-azul/50 hover:bg-gardner-azul/10"
                 }`}
               >
-                <Iniciales nombre={a.nombre} anillo={ESTADO_ANILLO[a.estatus]} />
+                <Iniciales nombre={a.nombre} anillo={ESTADO_ANILLO[a.estatus]} foto={a.foto} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-gardner-gris">{a.nombre}</p>
                   <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${ESTADO_ESTILOS[a.estatus] ?? "bg-black/5"}`}>
