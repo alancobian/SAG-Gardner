@@ -8,9 +8,11 @@ import {
   obtenerFichaAlumno,
   actualizarAlumno,
   eliminarAlumno,
+  buscarAlumnos,
   type AlumnoRoster,
   type FichaAlumno,
   type DatosEdicionAlumno,
+  type AlumnoBusqueda,
 } from "@/lib/alumnos";
 
 type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -26,6 +28,12 @@ export async function listarAlumnosPorGrupoAction(grupoId: string): Promise<Resu
   if (!sesion) return { ok: false, error: "Sesión inválida" };
   if (!grupoId) return { ok: false, error: "Falta grupoId" };
   return { ok: true, data: await listarAlumnosPorGrupo(grupoId) };
+}
+
+export async function buscarAlumnosAction(termino: string): Promise<Resultado<AlumnoBusqueda[]>> {
+  const sesion = await requerirSesion();
+  if (!sesion) return { ok: false, error: "Sesión inválida" };
+  return { ok: true, data: await buscarAlumnos(termino) };
 }
 
 export async function obtenerFichaAlumnoAction(alumnoId: string): Promise<Resultado<FichaAlumno>> {

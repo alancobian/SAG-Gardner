@@ -135,7 +135,7 @@ function FichaPanel({
         onClick={(e) => e.stopPropagation()}
       >
         <div
-          className="relative flex h-28 shrink-0 items-start justify-between px-5 py-4"
+          className="relative flex min-h-24 shrink-0 items-start justify-between px-5 py-4"
           style={{ background: "linear-gradient(135deg, #007dc4 0%, #005386 100%)" }}
         >
           <h2 className="text-sm font-semibold text-white/90">Ficha del docente</h2>
@@ -149,19 +149,19 @@ function FichaPanel({
 
         {ficha && !cargando && (
           <div className="flex flex-col gap-5 px-5 pb-5">
-            <div className="-mt-10 flex items-end gap-3">
+            <div className="-mt-8 flex flex-col items-start gap-2">
               <div className="rounded-full bg-white p-1 shadow-md">
                 <Iniciales nombre={ficha.nombre} size={16} />
               </div>
-              <div className="pb-1">
+              <div className="w-full pt-1">
                 {editando ? (
                   <input
                     value={nombre}
                     onChange={(e) => setNombre(e.target.value)}
-                    className="rounded-lg border border-gardner-gris/25 px-2 py-1 text-sm font-semibold"
+                    className="w-full rounded-lg border border-gardner-gris/25 px-2 py-1 text-sm font-semibold"
                   />
                 ) : (
-                  <p className="font-semibold text-gardner-gris">{ficha.nombre}</p>
+                  <p className="break-words font-semibold leading-snug text-gardner-gris">{ficha.nombre}</p>
                 )}
                 {editando ? (
                   <select
@@ -230,6 +230,29 @@ function FichaPanel({
 
             <div className="rounded-xl bg-gardner-neutro p-3 text-center text-xs text-gardner-gris/70">
               {ficha.stats.totalRegistros} registros de asistencia · {ficha.stats.totalRetardos} retardos
+            </div>
+
+            <div className="flex items-center gap-3 rounded-xl border border-gardner-gris/15 p-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`/api/qr?codigo=${encodeURIComponent(ficha.codigoQr)}`}
+                alt={`Código QR de ${ficha.nombre}`}
+                width={64}
+                height={64}
+                className="h-16 w-16 shrink-0 rounded-lg border border-gardner-gris/15"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-gardner-gris">Credencial digital</p>
+                <p className="truncate text-xs text-gardner-gris/55">{ficha.codigoQr}</p>
+              </div>
+              <a
+                href={`/api/qr?codigo=${encodeURIComponent(ficha.codigoQr)}&nombre=${encodeURIComponent(ficha.nombre)}&download=1`}
+                download
+                className="flex shrink-0 items-center gap-1 rounded-lg bg-gardner-azul px-3 py-1.5 text-xs font-semibold text-white hover:bg-gardner-azul-oscuro"
+              >
+                <span className="material-symbols-outlined text-[16px]">download</span>
+                Descargar
+              </a>
             </div>
 
             <div>
