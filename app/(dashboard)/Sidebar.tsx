@@ -7,7 +7,6 @@ import { usePathname, useRouter } from "next/navigation";
 type Item = { id: string; label: string; href: string; icono: string };
 
 const ITEMS: Item[] = [
-  { id: "escaneo", label: "Escaneo", href: "/escaneo", icono: "qr_code_scanner" },
   { id: "asistencia", label: "Asistencia", href: "/asistencia", icono: "calendar_today" },
   { id: "grupos-alumnos", label: "Grupos y Alumnos", href: "/grupos-alumnos", icono: "groups" },
   { id: "docentes", label: "Docentes", href: "/docentes", icono: "badge" },
@@ -66,7 +65,18 @@ export default function Sidebar() {
           })}
         </nav>
       </div>
-      <div className="px-3">
+      <div className="flex flex-col gap-1 px-3">
+        <a
+          href="https://acceso.institutogardner.edu.mx"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-gardner-gris/70 transition-colors hover:bg-gardner-azul/10 hover:text-gardner-azul-oscuro"
+          title="La pantalla de escaneo vive en su propio dominio, para usarse en los puntos de acceso"
+        >
+          <span className="material-symbols-outlined text-[20px]">qr_code_scanner</span>
+          Pantalla de acceso
+          <span className="material-symbols-outlined ml-auto text-[16px] opacity-60">open_in_new</span>
+        </a>
         <button
           onClick={cerrarSesion}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-gardner-gris/80 transition-colors hover:bg-gardner-gris/10 hover:text-gardner-gris"
