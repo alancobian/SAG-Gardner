@@ -54,6 +54,12 @@ const ESTILO_RESULTADO: Record<
     icono: "logout",
     titulo: () => "Salida registrada",
   },
+  duplicado: {
+    color: "text-white",
+    bg: "bg-[var(--color-estado-puntual)]",
+    icono: "verified",
+    titulo: () => "Entrada ya registrada",
+  },
   ya_completo: {
     color: "text-white",
     bg: "bg-gardner-gris",

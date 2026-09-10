@@ -9,6 +9,22 @@ import { supaGet, supaInsert, supaUpdate, eqP, qs } from "./supabaseAdmin";
 
 const OFFSET_HORAS_MX = -6;
 
+// Si un QR se queda demasiado tiempo frente a la camara (niño que no lo
+// retira a tiempo), el mismo escaneo puede repetirse ya pasado el cooldown
+// del cliente (ver COOLDOWN_MS en EscaneoClient.tsx) y el backend lo
+// interpretaria como el "siguiente" evento -- cerrando como salida una
+// entrada que se acaba de registrar segundos antes. Este umbral es la
+// defensa real (a nivel servidor, no depende del timing del cliente ni de
+// que sea el mismo dispositivo): si la sesion abierta se abrio hace menos de
+// este tiempo, el escaneo se trata como duplicado y no se cierra como
+// salida.
+const UMBRAL_DUPLICADO_SEGUNDOS = 10;
+
+function esEscaneoDuplicado(horaEntradaTexto: string, ahoraMx: Date): boolean {
+  const segundosTranscurridos = (ahoraMx.getTime() - new Date(horaEntradaTexto).getTime()) / 1000;
+  return segundosTranscurridos < UMBRAL_DUPLICADO_SEGUNDOS;
+}
+
 function horaLocalMx(): Date {
   const ahora = new Date();
   return new Date(ahora.getTime() + OFFSET_HORAS_MX * 60 * 60 * 1000);
@@ -40,6 +56,7 @@ function diaSemanaMx(fecha: Date): number {
 export type ResultadoEscaneo =
   | "entrada"
   | "salida"
+  | "duplicado"
   | "ya_completo"
   | "inactivo"
   | "no_encontrado"
@@ -70,7 +87,7 @@ type DocenteEscaneoRow = {
   nivel_academico: string | null;
 };
 
-type RegistroAsistenciaRow = { id: string; hora_salida: string | null };
+type RegistroAsistenciaRow = { id: string; hora_entrada: string; hora_salida: string | null };
 type HorarioRetardoRow = { hora_entrada: string; minutos_tolerancia: number | null };
 type BloqueHorarioEscaneoRow = { id: string; hora_inicio: string; hora_fin: string; minutos_tolerancia: number | null };
 type RegistroDocenteHoyRow = { id: string; hora_entrada: string; hora_salida: string | null };
@@ -96,6 +113,9 @@ async function procesarEscaneoAlumno(alumno: AlumnoEscaneoRow, usuarioId: string
 
   if (registrosHoy.length > 0) {
     const registro = registrosHoy[0];
+    if (esEscaneoDuplicado(registro.hora_entrada, ahoraMx)) {
+      return { resultado: "duplicado", tipoPersona: "alumno", persona };
+    }
     await supaUpdate("registros_asistencia", eqP("id", registro.id), {
       hora_salida: ahoraMx,
       registrado_por_salida_id: usuarioId,
@@ -168,6 +188,9 @@ async function procesarEscaneoDocente(docente: DocenteEscaneoRow, usuarioId: str
 
     if (registrosHoy.length > 0) {
       const registro = registrosHoy[0];
+      if (esEscaneoDuplicado(registro.hora_entrada, ahoraMx)) {
+        return { resultado: "duplicado", tipoPersona: "docente", persona };
+      }
       await supaUpdate("asistencia_docentes", eqP("id", registro.id), {
         hora_salida: ahoraMx,
         registrado_por_salida_id: usuarioId,
@@ -206,6 +229,9 @@ async function procesarEscaneoDocente(docente: DocenteEscaneoRow, usuarioId: str
 
   const sesionAbierta = registrosHoy.find((r) => !r.hora_salida);
   if (sesionAbierta) {
+    if (esEscaneoDuplicado(sesionAbierta.hora_entrada, ahoraMx)) {
+      return { resultado: "duplicado", tipoPersona: "docente", persona };
+    }
     await supaUpdate("asistencia_docentes", eqP("id", sesionAbierta.id), {
       hora_salida: ahoraMx,
       registrado_por_salida_id: usuarioId,
