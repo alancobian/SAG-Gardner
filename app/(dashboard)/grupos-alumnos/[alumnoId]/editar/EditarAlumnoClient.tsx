@@ -4,7 +4,8 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { FichaAlumno, TutorEdicion } from "@/lib/alumnos";
-import { obtenerFichaAlumnoAction, actualizarAlumnoAction, eliminarAlumnoAction } from "../../actions";
+import type { Grupo } from "@/lib/grupos";
+import { obtenerFichaAlumnoAction, actualizarAlumnoAction, eliminarAlumnoAction, listarGruposAction } from "../../actions";
 
 const ESTATUS_OPCIONES = [
   {
@@ -44,6 +45,8 @@ export default function EditarAlumnoClient({ alumnoId }: { alumnoId: string }) {
 
   const [nombre, setNombre] = useState("");
   const [estatus, setEstatus] = useState("Activo");
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
+  const [grupoId, setGrupoId] = useState("");
   const [tutores, setTutores] = useState<TutorEdicion[]>([]);
   const [confirmarEliminar, setConfirmarEliminar] = useState(false);
 
@@ -53,6 +56,7 @@ export default function EditarAlumnoClient({ alumnoId }: { alumnoId: string }) {
         setFicha(res.data);
         setNombre(res.data.nombre);
         setEstatus(res.data.estatus);
+        setGrupoId(res.data.grupo?.id ?? "");
         setTutores(
           res.data.tutores.map((t) => ({
             id: t.id,
@@ -67,7 +71,15 @@ export default function EditarAlumnoClient({ alumnoId }: { alumnoId: string }) {
       }
       setCargando(false);
     });
+    listarGruposAction().then((res) => {
+      if (res.ok) setGrupos(res.data);
+    });
   }, [alumnoId]);
+
+  // Los grupos ya vienen agrupados/ordenados por nivel académico desde
+  // listarGrupos(); solo se necesita la lista de niveles en ese mismo orden
+  // para armar los <optgroup> del selector.
+  const nivelesConGrupos = Array.from(new Set(grupos.map((g) => g.nivelAcademico)));
 
   function guardar() {
     setError(null);
@@ -76,6 +88,7 @@ export default function EditarAlumnoClient({ alumnoId }: { alumnoId: string }) {
       const res = await actualizarAlumnoAction(alumnoId, {
         nombre,
         estatus,
+        grupoId: grupoId || undefined,
         tutores: tutores.filter((t) => t.nombre.trim()),
       });
       if (!res.ok) {
@@ -148,9 +161,7 @@ export default function EditarAlumnoClient({ alumnoId }: { alumnoId: string }) {
               onChange={(e) => setNombre(e.target.value)}
               className="w-72 rounded-lg border border-gardner-gris/25 px-3 py-2 text-sm outline-none focus:border-gardner-azul focus:ring-2 focus:ring-gardner-azul/20"
             />
-            <p className="text-xs text-gardner-gris/55">
-              {ficha.grupo ? `${ficha.grupo.nombre} · ${ficha.grupo.nivelAcademico}` : "Sin grupo"} · {ficha.codigoQr}
-            </p>
+            <p className="text-xs text-gardner-gris/55">{ficha.codigoQr}</p>
           </div>
         </div>
 
@@ -170,6 +181,32 @@ export default function EditarAlumnoClient({ alumnoId }: { alumnoId: string }) {
               </button>
             ))}
           </div>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-xs font-semibold text-gardner-gris/75">Grado y grupo</label>
+          <select
+            value={grupoId}
+            onChange={(e) => setGrupoId(e.target.value)}
+            className="w-full max-w-xs rounded-lg border border-gardner-gris/25 px-3 py-2 text-sm outline-none focus:border-gardner-azul focus:ring-2 focus:ring-gardner-azul/20"
+          >
+            {!grupoId && <option value="">Sin grupo</option>}
+            {nivelesConGrupos.map((nivel) => (
+              <optgroup key={nivel} label={nivel}>
+                {grupos
+                  .filter((g) => g.nivelAcademico === nivel)
+                  .map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.nombre}
+                    </option>
+                  ))}
+              </optgroup>
+            ))}
+          </select>
+          <p className="mt-1.5 text-xs text-gardner-gris/55">
+            Cambiar el grupo también actualiza el grado y el nivel académico del alumno, ya que cada grupo ya
+            corresponde a un grado y nivel específicos.
+          </p>
         </div>
 
         <div>
