@@ -19,6 +19,15 @@ export type SesionUsuario = {
   nombre: string;
   correo: string;
   rol: "Administrador" | "Staff" | "Portería" | string;
+  /**
+   * Niveles que este usuario puede ver. Arreglo vacío = todo el plantel.
+   *
+   * Ojo: este valor viaja en el token por comodidad, pero NO es la fuente de
+   * verdad. obtenerSesion() lo vuelve a leer de la base en cada request, para
+   * que al cambiarle el alcance a alguien surta efecto de inmediato y no haya
+   * que esperar a que caduque su sesión de 12 horas.
+   */
+  niveles?: string[];
 };
 
 function getSecretKey() {

@@ -2,6 +2,7 @@
 // (http-functions-supabase.js, Bloque 1).
 
 import { supaGet, supaInsert, supaUpdate, eqP, qs } from "./supabaseAdmin";
+import { NIVELES, type Nivel } from "./niveles";
 
 export const ROLES_VALIDOS = ["Administrador", "Staff", "Portería"] as const;
 export type Rol = (typeof ROLES_VALIDOS)[number];
@@ -12,6 +13,8 @@ export type Usuario = {
   correo: string;
   rol: string;
   activo: boolean;
+  /** Niveles que puede ver. Vacío = todo el plantel. Ver lib/niveles.ts. */
+  niveles: string[];
 };
 
 type UsuarioRow = {
@@ -20,6 +23,7 @@ type UsuarioRow = {
   correo: string;
   rol: string;
   activo: boolean | null;
+  niveles: string[] | null;
 };
 
 export async function listarUsuarios(): Promise<Usuario[]> {
@@ -30,6 +34,7 @@ export async function listarUsuarios(): Promise<Usuario[]> {
     correo: u.correo,
     rol: u.rol,
     activo: u.activo !== false,
+    niveles: u.niveles ?? [],
   }));
 }
 
@@ -68,6 +73,8 @@ export type DatosEdicionUsuario = {
   pin?: string;
   rol?: string;
   activo?: boolean;
+  /** Arreglo vacío = sin restricción de nivel. */
+  niveles?: string[];
 };
 
 export async function actualizarUsuario(objetivoId: string, datos: DatosEdicionUsuario): Promise<void> {
@@ -85,6 +92,14 @@ export async function actualizarUsuario(objetivoId: string, datos: DatosEdicionU
     patch.rol = datos.rol;
   }
   if (datos.activo !== undefined) patch.activo = !!datos.activo;
+  if (datos.niveles !== undefined) {
+    // Se valida contra el catálogo para que un valor mal escrito no deje a
+    // alguien sin ver nada (la base tiene el mismo CHECK, esto es el aviso
+    // temprano con un mensaje entendible).
+    const invalidos = datos.niveles.filter((n) => !NIVELES.includes(n as Nivel));
+    if (invalidos.length > 0) throw new Error(`Nivel inválido: ${invalidos.join(", ")}`);
+    patch.niveles = datos.niveles;
+  }
 
   if (Object.keys(patch).length > 0) {
     await supaUpdate("usuarios_sistema", eqP("id", objetivoId), patch);

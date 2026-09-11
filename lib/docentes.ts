@@ -3,6 +3,7 @@
 // post_actualizarDocente y post_eliminarDocente (http-functions-supabase.js).
 
 import { supaGet, supaInsert, supaUpdate, supaDelete, eqP, qs } from "./supabaseAdmin";
+import { filtroNivel, puedeVerNivel } from "./niveles";
 
 export type Docente = {
   id: string;
@@ -20,10 +21,16 @@ type DocenteRow = {
   foto_url: string | null;
 };
 
-export async function listarDocentes(): Promise<Docente[]> {
+// `niveles` acota el resultado al alcance del usuario (vacío = todos).
+export async function listarDocentes(niveles?: string[]): Promise<Docente[]> {
   const rows = await supaGet<DocenteRow>(
     "docentes",
-    qs(["select=id,nombre,nivel_academico,estatus,foto_url", "order=nombre.asc", "limit=500"])
+    qs([
+      "select=id,nombre,nivel_academico,estatus,foto_url",
+      filtroNivel(niveles),
+      "order=nombre.asc",
+      "limit=500",
+    ])
   );
   return rows.map((d) => ({
     id: d.id,
@@ -104,10 +111,17 @@ type RegistroDocenteRow = {
   hora_salida: string | null;
 };
 
-export async function obtenerFichaDocente(docenteId: string): Promise<FichaDocente | null> {
+export async function obtenerFichaDocente(
+  docenteId: string,
+  niveles?: string[]
+): Promise<FichaDocente | null> {
   const rows = await supaGet<FichaDocenteRow>("docentes", eqP("id", docenteId));
   if (rows.length === 0) return null;
   const docente = rows[0];
+
+  // Un usuario acotado no puede abrir la ficha de un docente de otro nivel,
+  // ni siquiera escribiendo el id a mano en la URL.
+  if (!puedeVerNivel(niveles, docente.nivel_academico)) return null;
 
   const [historial, bloquesRows] = await Promise.all([
     supaGet<RegistroDocenteRow>(

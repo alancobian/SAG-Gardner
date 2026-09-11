@@ -17,14 +17,14 @@ type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 export async function listarDocentesAction(): Promise<Resultado<Docente[]>> {
   const sesion = await requerirSesion();
   if (!sesion) return { ok: false, error: "Sesión inválida" };
-  return { ok: true, data: await listarDocentes() };
+  return { ok: true, data: await listarDocentes(sesion.niveles) };
 }
 
 export async function obtenerFichaDocenteAction(docenteId: string): Promise<Resultado<FichaDocente>> {
   const sesion = await requerirSesion();
   if (!sesion) return { ok: false, error: "Sesión inválida" };
   if (!docenteId) return { ok: false, error: "Falta docenteId" };
-  const ficha = await obtenerFichaDocente(docenteId);
+  const ficha = await obtenerFichaDocente(docenteId, sesion.niveles);
   if (!ficha) return { ok: false, error: "Docente no encontrado" };
   return { ok: true, data: ficha };
 }

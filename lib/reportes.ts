@@ -4,6 +4,7 @@
 // datos -- solo cambia la forma de invocarla.
 
 import { supaGet, supaCount, eqP, qs } from "./supabaseAdmin";
+import { filtroNivel, tieneAccesoTotal } from "./niveles";
 
 type Grupo = {
   id: string;
@@ -168,9 +169,23 @@ function fechaComoTextoMx(fecha: Date) {
 // muestra como pendiente sobre Justificantes, asi que se calcula con conteos
 // (tres consultas que no traen filas) en vez de armar el reporte completo,
 // porque corre en cada carga del panel.
-export async function contarAusenciasSinJustificar(fechaParam?: string): Promise<number> {
+export async function contarAusenciasSinJustificar(
+  fechaParam?: string,
+  niveles?: string[]
+): Promise<number> {
   const fecha = fechaParam || fechaHoyMx();
   try {
+    // Con alcance restringido el conteo sale del reporte ya filtrado: son
+    // pocos grupos y así el número coincide exactamente con lo que esa persona
+    // ve en pantalla, en vez de contar alumnos de niveles que no le tocan.
+    if (!tieneAccesoTotal(niveles)) {
+      const reporte = await obtenerReporteDiario(fecha, niveles);
+      return reporte.grupos.reduce(
+        (acc, g) => acc + g.alumnos.filter((a) => a.estatus === "Ausente" && !a.justificado).length,
+        0
+      );
+    }
+
     const [activos, conRegistro, justificados] = await Promise.all([
       supaCount("alumnos", eqP("estatus", "Activo")),
       supaCount("registros_asistencia", eqP("fecha", fecha)),
@@ -184,11 +199,22 @@ export async function contarAusenciasSinJustificar(fechaParam?: string): Promise
   }
 }
 
-export async function obtenerReporteDiario(fechaParam?: string): Promise<ReporteDiario> {
+export async function obtenerReporteDiario(fechaParam?: string, niveles?: string[]): Promise<ReporteDiario> {
   const fecha = fechaParam || fechaComoTextoMx(new Date());
 
   const [alumnosRows, registrosRows, calendarioRows, tutores, justificados] = await Promise.all([
-    supaGet<Alumno>("alumnos", qs([eqP("estatus", "Activo"), "select=*,grupo:grupos(*)", "limit=1000"])),
+    // El filtro por nivel viaja dentro del embed del grupo: PostgREST acepta
+    // "grupo.nivel_academico=in.(...)" y, junto con el !inner, descarta a los
+    // alumnos cuyo grupo no cae en el alcance en vez de traerlos con grupo nulo.
+    supaGet<Alumno>(
+      "alumnos",
+      qs([
+        eqP("estatus", "Activo"),
+        tieneAccesoTotal(niveles) ? "select=*,grupo:grupos(*)" : "select=*,grupo:grupos!inner(*)",
+        filtroNivel(niveles, "grupo.nivel_academico"),
+        "limit=1000",
+      ])
+    ),
     supaGet<RegistroAsistencia>("registros_asistencia", qs([eqP("fecha", fecha), "limit=1000"])),
     supaGet<DiaCalendario>("calendario_escolar", eqP("fecha", fecha)),
     obtenerTutoresPorGrupo(),

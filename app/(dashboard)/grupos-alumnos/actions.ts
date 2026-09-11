@@ -20,27 +20,27 @@ type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 export async function listarGruposAction(): Promise<Resultado<Grupo[]>> {
   const sesion = await requerirSesion();
   if (!sesion) return { ok: false, error: "Sesión inválida" };
-  return { ok: true, data: await listarGrupos() };
+  return { ok: true, data: await listarGrupos(sesion.niveles) };
 }
 
 export async function listarAlumnosPorGrupoAction(grupoId: string): Promise<Resultado<AlumnoRoster[]>> {
   const sesion = await requerirSesion();
   if (!sesion) return { ok: false, error: "Sesión inválida" };
   if (!grupoId) return { ok: false, error: "Falta grupoId" };
-  return { ok: true, data: await listarAlumnosPorGrupo(grupoId) };
+  return { ok: true, data: await listarAlumnosPorGrupo(grupoId, sesion.niveles) };
 }
 
 export async function buscarAlumnosAction(termino: string): Promise<Resultado<AlumnoBusqueda[]>> {
   const sesion = await requerirSesion();
   if (!sesion) return { ok: false, error: "Sesión inválida" };
-  return { ok: true, data: await buscarAlumnos(termino) };
+  return { ok: true, data: await buscarAlumnos(termino, sesion.niveles) };
 }
 
 export async function obtenerFichaAlumnoAction(alumnoId: string): Promise<Resultado<FichaAlumno>> {
   const sesion = await requerirSesion();
   if (!sesion) return { ok: false, error: "Sesión inválida" };
   if (!alumnoId) return { ok: false, error: "Falta alumnoId" };
-  const ficha = await obtenerFichaAlumno(alumnoId);
+  const ficha = await obtenerFichaAlumno(alumnoId, sesion.niveles);
   if (!ficha) return { ok: false, error: "Alumno no encontrado" };
   return { ok: true, data: ficha };
 }

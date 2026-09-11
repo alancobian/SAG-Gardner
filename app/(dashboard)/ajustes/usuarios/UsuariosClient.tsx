@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import type { Usuario } from "@/lib/usuarios";
+import { NIVELES, describirAlcance } from "@/lib/niveles";
 import { listarUsuariosAction, crearUsuarioAction, actualizarUsuarioAction } from "./actions";
 
 const ROLES = ["Administrador", "Staff", "Portería"];
@@ -33,6 +34,7 @@ function FilaUsuario({
   const [nombre, setNombre] = useState(usuario.nombre);
   const [correo, setCorreo] = useState(usuario.correo);
   const [rol, setRol] = useState(usuario.rol);
+  const [niveles, setNiveles] = useState<string[]>(usuario.niveles);
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -44,6 +46,7 @@ function FilaUsuario({
         nombre,
         correo,
         rol,
+        niveles,
         ...(pin.trim() ? { pin: pin.trim() } : {}),
       });
       if (!res.ok) {
@@ -107,6 +110,41 @@ function FilaUsuario({
             className="rounded-lg border border-gardner-gris/25 px-3 py-2 text-sm"
           />
         </div>
+        {/* Alcance por nivel: el rol dice qué puede hacer, esto qué puede ver. */}
+        <div className="mt-3 rounded-lg border border-gardner-gris/15 bg-gardner-neutro p-3">
+          <p className="text-xs font-semibold text-gardner-gris">Puede ver</p>
+          <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm text-gardner-gris">
+            <input
+              type="checkbox"
+              checked={niveles.length === 0}
+              onChange={(e) => setNiveles(e.target.checked ? [] : [...NIVELES])}
+              className="h-4 w-4 accent-[var(--color-gardner-azul)]"
+            />
+            Todos los niveles
+          </label>
+          {niveles.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-3 border-t border-gardner-gris/15 pt-2">
+              {NIVELES.map((n) => (
+                <label key={n} className="flex cursor-pointer items-center gap-1.5 text-sm text-gardner-gris">
+                  <input
+                    type="checkbox"
+                    checked={niveles.includes(n)}
+                    onChange={(e) =>
+                      setNiveles((prev) => (e.target.checked ? [...prev, n] : prev.filter((x) => x !== n)))
+                    }
+                    className="h-4 w-4 accent-[var(--color-gardner-azul)]"
+                  />
+                  {n}
+                </label>
+              ))}
+            </div>
+          )}
+          <p className="mt-2 text-[11px] leading-relaxed text-gardner-gris/60">
+            Con un alcance limitado, esta persona solo verá los grupos, alumnos, docentes y justificantes de esos
+            niveles — también en el buscador. El kiosco de la entrada no se ve afectado: ahí se registra a todos.
+          </p>
+        </div>
+
         {esMiPropiaCuenta && (
           <p className="mt-2 text-xs text-gardner-gris/65">No puedes cambiar tu propio rol desde aquí.</p>
         )}
@@ -125,6 +163,7 @@ function FilaUsuario({
               setNombre(usuario.nombre);
               setCorreo(usuario.correo);
               setRol(usuario.rol);
+              setNiveles(usuario.niveles);
               setPin("");
               setError(null);
             }}
@@ -145,7 +184,7 @@ function FilaUsuario({
           {usuario.nombre} {esMiPropiaCuenta && <span className="text-xs text-gardner-gris/55">(tú)</span>}
         </p>
         <p className="text-xs text-gardner-gris/65">
-          {usuario.correo} · {usuario.rol}
+          {usuario.correo} · {usuario.rol} · {describirAlcance(usuario.niveles)}
         </p>
         {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       </div>

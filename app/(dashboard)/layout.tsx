@@ -15,7 +15,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // barra superior y el pendiente de justificantes sobre su item del menu.
   const [ciclo, pendientesJustificantes] = await Promise.all([
     obtenerCicloEscolar(),
-    contarAusenciasSinJustificar(),
+    contarAusenciasSinJustificar(undefined, sesion.niveles),
   ]);
 
   return (

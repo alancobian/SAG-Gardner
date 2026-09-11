@@ -8,7 +8,10 @@ export default async function AsistenciaPage({
   searchParams: Promise<{ fecha?: string }>;
 }) {
   const params = await searchParams;
-  const [reporte, sesion] = await Promise.all([obtenerReporteDiario(params.fecha), obtenerSesion()]);
+  // La sesión va primero porque el reporte se acota a los niveles que ese
+  // usuario tiene permitido ver.
+  const sesion = await obtenerSesion();
+  const reporte = await obtenerReporteDiario(params.fecha, sesion?.niveles);
   const puedeEditar = sesion?.rol === "Administrador";
 
   return <AsistenciaClient reporte={reporte} puedeEditar={puedeEditar} />;

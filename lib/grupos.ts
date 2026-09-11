@@ -1,6 +1,7 @@
 // Puerto directo de get_grupos (http-functions-supabase.js, Bloque 1).
 
 import { supaGet, supaUpdate, supaDelete, supaCount, eqP, qs } from "./supabaseAdmin";
+import { filtroNivel } from "./niveles";
 
 export type Grupo = {
   id: string;
@@ -100,8 +101,13 @@ export async function eliminarGrupo(grupoId: string): Promise<void> {
   await supaDelete("grupos", eqP("id", grupoId));
 }
 
-export async function listarGrupos(): Promise<Grupo[]> {
-  const rows = await supaGet<GrupoRow>("grupos", qs(["order=nombre.asc", "limit=200"]));
+// `niveles` acota el resultado al alcance del usuario (vacío = todos). Ver
+// lib/niveles.ts.
+export async function listarGrupos(niveles?: string[]): Promise<Grupo[]> {
+  const rows = await supaGet<GrupoRow>(
+    "grupos",
+    qs([filtroNivel(niveles), "order=nombre.asc", "limit=200"])
+  );
   const grupos = rows.map((g) => ({
     id: g.id,
     nombre: g.nombre,

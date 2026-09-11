@@ -7,6 +7,7 @@
 // tipo de ausencia, y la pantalla muestra los mas recientes de todo el plantel.
 
 import { supaGet, supaInsert, supaDelete, eqP, qs } from "./supabaseAdmin";
+import { filtroNivel, tieneAccesoTotal } from "./niveles";
 
 // El catalogo vive aqui y esta replicado como CHECK en la base (ver
 // justificantes_tipo_check en schema_sag_migracion1_rediseno.sql): si se agrega
@@ -74,11 +75,17 @@ export async function listarJustificantes(alumnoId: string): Promise<Justificant
 
 // Vista principal de la seccion: los ultimos justificantes del plantel, sin
 // tener que buscar alumno por alumno.
-export async function listarJustificantesRecientes(limite = 60): Promise<JustificanteConAlumno[]> {
+export async function listarJustificantesRecientes(
+  limite = 60,
+  niveles?: string[]
+): Promise<JustificanteConAlumno[]> {
   const rows = await supaGet<JustificanteConAlumnoRow>(
     "justificantes",
     qs([
-      "select=*,alumno:alumnos(id,nombre,foto_url,grupo:grupos(nombre))",
+      tieneAccesoTotal(niveles)
+        ? "select=*,alumno:alumnos(id,nombre,foto_url,grupo:grupos(nombre))"
+        : "select=*,alumno:alumnos!inner(id,nombre,foto_url,grupo:grupos!inner(nombre))",
+      filtroNivel(niveles, "alumno.grupo.nivel_academico"),
       "order=fecha_inicio.desc",
       `limit=${limite}`,
     ])

@@ -18,7 +18,7 @@ type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 export async function buscarAlumnosAction(termino: string): Promise<Resultado<AlumnoBusqueda[]>> {
   const sesion = await requerirSesion();
   if (!sesion) return { ok: false, error: "Sesión inválida" };
-  const resultados = await buscarAlumnos(termino);
+  const resultados = await buscarAlumnos(termino, sesion.niveles);
   return { ok: true, data: resultados };
 }
 
@@ -35,7 +35,7 @@ export async function listarJustificantesAction(alumnoId: string): Promise<Resul
 export async function listarJustificantesRecientesAction(): Promise<Resultado<JustificanteConAlumno[]>> {
   const sesion = await requerirSesion();
   if (!sesion) return { ok: false, error: "Sesión inválida" };
-  return { ok: true, data: await listarJustificantesRecientes() };
+  return { ok: true, data: await listarJustificantesRecientes(60, sesion.niveles) };
 }
 
 export async function crearJustificanteAction(datos: {

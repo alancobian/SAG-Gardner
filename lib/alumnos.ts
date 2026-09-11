@@ -4,6 +4,7 @@
 
 import { supaGet, supaUpdate, supaDelete, supaInsert, eqP, ilikeP, qs } from "./supabaseAdmin";
 import { fechaHoyMx } from "./reportes";
+import { filtroNivel, puedeVerNivel, tieneAccesoTotal } from "./niveles";
 
 type GrupoRef = { id: string; nombre: string } | null;
 
@@ -19,13 +20,20 @@ export type AlumnoBusqueda = {
   grupo: string;
 };
 
-export async function buscarAlumnos(termino: string): Promise<AlumnoBusqueda[]> {
+export async function buscarAlumnos(termino: string, niveles?: string[]): Promise<AlumnoBusqueda[]> {
   const texto = termino.trim();
   if (!texto) return [];
 
   const rows = await supaGet<AlumnoRow>(
     "alumnos",
-    qs([ilikeP("nombre", texto), "select=id,nombre,grupo:grupos(id,nombre)", "limit=20"])
+    qs([
+      ilikeP("nombre", texto),
+      tieneAccesoTotal(niveles)
+        ? "select=id,nombre,grupo:grupos(id,nombre)"
+        : "select=id,nombre,grupo:grupos!inner(id,nombre)",
+      filtroNivel(niveles, "grupo.nivel_academico"),
+      "limit=20",
+    ])
   );
 
   return rows.map((alumno) => ({
@@ -54,7 +62,17 @@ type AlumnoRosterRow = {
   codigo_qr: string | null;
 };
 
-export async function listarAlumnosPorGrupo(grupoId: string): Promise<AlumnoRoster[]> {
+export async function listarAlumnosPorGrupo(grupoId: string, niveles?: string[]): Promise<AlumnoRoster[]> {
+  // Se valida el grupo, no cada alumno: si el grupo no cae en el alcance del
+  // usuario, no hay roster que devolver.
+  if (!tieneAccesoTotal(niveles)) {
+    const grupo = await supaGet<{ nivel_academico: string }>(
+      "grupos",
+      qs([eqP("id", grupoId), "select=nivel_academico"])
+    );
+    if (!grupo[0] || !puedeVerNivel(niveles, grupo[0].nivel_academico)) return [];
+  }
+
   const rows = await supaGet<AlumnoRosterRow>(
     "alumnos",
     qs([eqP("grupo_id", grupoId), "select=id,nombre,estatus,foto_url,codigo_qr", "order=nombre.asc", "limit=200"])
@@ -118,13 +136,17 @@ type RegistroAsistenciaRow = {
   hora_salida: string | null;
 };
 
-export async function obtenerFichaAlumno(alumnoId: string): Promise<FichaAlumno | null> {
+export async function obtenerFichaAlumno(alumnoId: string, niveles?: string[]): Promise<FichaAlumno | null> {
   const rows = await supaGet<FichaAlumnoRow>(
     "alumnos",
     qs([eqP("id", alumnoId), "select=*,grupo:grupos(*),alumno_tutor(tutor:tutores(*))"])
   );
   if (rows.length === 0) return null;
   const alumno = rows[0];
+
+  // Igual que con docentes: el alcance se respeta aunque se llegue por id
+  // directo, no solo desde los listados ya filtrados.
+  if (!puedeVerNivel(niveles, alumno.grupo?.nivel_academico ?? null)) return null;
 
   const historial = await supaGet<RegistroAsistenciaRow>(
     "registros_asistencia",

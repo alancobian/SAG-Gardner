@@ -8,5 +8,5 @@ type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 export async function buscarGlobalAction(termino: string): Promise<Resultado<ResultadoBusqueda[]>> {
   const sesion = await requerirSesion();
   if (!sesion) return { ok: false, error: "Sesión inválida" };
-  return { ok: true, data: await buscarEnTodoElSistema(termino) };
+  return { ok: true, data: await buscarEnTodoElSistema(termino, sesion.niveles) };
 }
