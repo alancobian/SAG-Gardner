@@ -6,6 +6,7 @@ import UsuariosClient from "./usuarios/UsuariosClient";
 import CargarAlumnosClient from "./cargar-alumnos/CargarAlumnosClient";
 import CargarDocentesClient from "./cargar-docentes/CargarDocentesClient";
 import HorarioDocentesClient from "./horario-docentes/HorarioDocentesClient";
+import ArchivoClient from "./ArchivoClient";
 
 const TABS = [
   { clave: "calendario", etiqueta: "Calendario escolar", icono: "calendar_month" },
@@ -51,16 +52,7 @@ export default function AjustesClient({ miPropioId }: { miPropioId: string }) {
         {tab === "usuarios" && <UsuariosClient miPropioId={miPropioId} />}
         {tab === "cargar-alumnos" && <CargarAlumnosClient />}
         {tab === "cargar-docentes" && <CargarDocentesClient />}
-        {tab === "archivo" && (
-          <div className="flex flex-col items-center gap-3 rounded-2xl bg-white p-12 text-center shadow-sm">
-            <span className="material-symbols-outlined text-[40px] text-gardner-gris/45">archive</span>
-            <p className="text-sm font-medium text-gardner-gris">Archivo</p>
-            <p className="max-w-sm text-xs text-gardner-gris/65">
-              Esta sección todavía no está definida. Aquí podrán consultarse en el futuro los alumnos y docentes dados de
-              baja u otros documentos históricos.
-            </p>
-          </div>
-        )}
+        {tab === "archivo" && <ArchivoClient />}
       </div>
     </div>
   );

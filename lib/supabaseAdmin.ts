@@ -52,6 +52,25 @@ export async function supaGet<T = unknown>(table: string, query?: string): Promi
   return res.json();
 }
 
+// Cuenta filas sin traerlas. PostgREST devuelve el total en la cabecera
+// Content-Range ("0-0/1556") cuando se pide Prefer: count=exact, asi que se
+// trae una sola fila y se lee el total de ahi -- util para conteos grandes
+// (registros de un ciclo completo) donde descargar todo seria absurdo.
+export async function supaCount(table: string, query?: string): Promise<number> {
+  assertEnv();
+  const url = `${SUPABASE_URL}/rest/v1/${table}?${query ? `${query}&` : ""}select=*`;
+  const res = await fetch(url, {
+    headers: headers({ Prefer: "count=exact", Range: "0-0" }),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(`Supabase COUNT ${table}: ${res.status} ${await res.text()}`);
+  }
+  const rango = res.headers.get("content-range") || "";
+  const total = Number(rango.split("/")[1]);
+  return Number.isFinite(total) ? total : 0;
+}
+
 export async function supaInsert<T = unknown>(table: string, row: Record<string, unknown>): Promise<T> {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
     method: "POST",

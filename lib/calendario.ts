@@ -9,7 +9,7 @@
 // get_reporteDiario/get_grupoAsistencia/get_reporteDocentesDiario ya
 // filtran por aplica_a, no por esas funciones viejas.
 
-import { supaGet, supaInsert, supaUpdate, supaDelete, eqP, qs } from "./supabaseAdmin";
+import { supaGet, supaInsert, supaUpdate, supaDelete, supaCount, eqP, qs } from "./supabaseAdmin";
 
 function fechaComoTexto(fecha: Date): string {
   const anio = fecha.getUTCFullYear();
@@ -85,6 +85,79 @@ export async function guardarCicloEscolar(datos: {
       archivado: false,
     });
   }
+}
+
+// ---- Cierre y archivo de ciclos escolares ----
+
+export type CicloArchivado = CicloEscolar & {
+  registrosAsistencia: number;
+};
+
+// Ciclos ya cerrados, del mas reciente al mas antiguo, con cuantos registros
+// de asistencia quedaron guardados en cada uno.
+export async function listarCiclosArchivados(): Promise<CicloArchivado[]> {
+  const rows = await supaGet<CicloRow>("ciclos_escolares", "limit=50");
+  const archivados = rows
+    .filter((c) => c.archivado === true)
+    .sort((a, b) => (b.fecha_inicio || "").localeCompare(a.fecha_inicio || ""));
+
+  return Promise.all(
+    archivados.map(async (c) => {
+      let registros = 0;
+      if (c.fecha_inicio && c.fecha_cierre) {
+        registros = await supaCount(
+          "registros_asistencia",
+          qs([`fecha=gte.${c.fecha_inicio.slice(0, 10)}`, `fecha=lte.${c.fecha_cierre.slice(0, 10)}`])
+        );
+      }
+      return {
+        id: c.id,
+        anioEscolar: c.anio_escolar || "",
+        fechaInicio: c.fecha_inicio ? fechaComoTexto(new Date(c.fecha_inicio)) : null,
+        fechaCierre: c.fecha_cierre ? fechaComoTexto(new Date(c.fecha_cierre)) : null,
+        registrosAsistencia: registros,
+      };
+    })
+  );
+}
+
+// Cierra el ciclo activo y abre uno nuevo.
+//
+// Importante: esto NO borra ni mueve nada. Los registros de asistencia, los
+// alumnos y los docentes siguen exactamente donde estaban -- el ciclo anterior
+// solo queda marcado como archivado para poder consultarlo aparte. Tampoco
+// promueve alumnos de grado: esa decision es academica y se hace a mano desde
+// Grupos y Alumnos.
+export async function cerrarCicloEscolar(nuevo: {
+  anioEscolar: string;
+  fechaInicio: string;
+  fechaCierre: string;
+}): Promise<void> {
+  const anioEscolar = nuevo.anioEscolar.trim();
+  const fechaInicio = nuevo.fechaInicio.trim();
+  const fechaCierre = nuevo.fechaCierre.trim();
+  if (!anioEscolar || !fechaInicio || !fechaCierre) {
+    throw new Error("Falta el año escolar o las fechas del nuevo ciclo");
+  }
+  if (fechaCierre <= fechaInicio) {
+    throw new Error("La fecha de cierre debe ser posterior a la de inicio");
+  }
+
+  const rows = await supaGet<CicloRow>("ciclos_escolares", "limit=50");
+  const activo = rows.find((c) => c.archivado !== true);
+  if (!activo) throw new Error("No hay un ciclo activo que cerrar");
+
+  if (rows.some((c) => c.anio_escolar === anioEscolar && c.id !== activo.id)) {
+    throw new Error(`Ya existe un ciclo ${anioEscolar}`);
+  }
+
+  await supaUpdate("ciclos_escolares", eqP("id", activo.id), { archivado: true });
+  await supaInsert("ciclos_escolares", {
+    anio_escolar: anioEscolar,
+    fecha_inicio: fechaInicio,
+    fecha_cierre: fechaCierre,
+    archivado: false,
+  });
 }
 
 // ---- Fechas no laborales (dia individual) ----
