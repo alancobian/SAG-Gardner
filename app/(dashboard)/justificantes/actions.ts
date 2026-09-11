@@ -3,7 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { requerirSesion } from "@/lib/auth";
 import { buscarAlumnos, type AlumnoBusqueda } from "@/lib/alumnos";
-import { listarJustificantes, crearJustificante, eliminarJustificante, type Justificante } from "@/lib/justificantes";
+import {
+  listarJustificantes,
+  listarJustificantesRecientes,
+  crearJustificante,
+  eliminarJustificante,
+  type Justificante,
+  type JustificanteConAlumno,
+  type TipoJustificante,
+} from "@/lib/justificantes";
 
 type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -22,18 +30,38 @@ export async function listarJustificantesAction(alumnoId: string): Promise<Resul
   return { ok: true, data: justificantes };
 }
 
-export async function crearJustificanteAction(
-  alumnoId: string,
-  fecha: string,
-  motivo: string
-): Promise<Resultado<{ id: string }>> {
+// Vista principal de la seccion: los justificantes mas recientes de todo el
+// plantel, sin tener que buscar alumno por alumno.
+export async function listarJustificantesRecientesAction(): Promise<Resultado<JustificanteConAlumno[]>> {
+  const sesion = await requerirSesion();
+  if (!sesion) return { ok: false, error: "Sesión inválida" };
+  return { ok: true, data: await listarJustificantesRecientes() };
+}
+
+export async function crearJustificanteAction(datos: {
+  alumnoId: string;
+  fechaInicio: string;
+  fechaFin: string;
+  tipo: TipoJustificante;
+  motivo: string;
+}): Promise<Resultado<{ id: string }>> {
   const sesion = await requerirSesion(["Administrador", "Staff"]);
   if (!sesion) return { ok: false, error: "No autorizado" };
-  if (!alumnoId || !fecha) return { ok: false, error: "Falta alumnoId o fecha" };
 
-  const id = await crearJustificante(alumnoId, fecha, motivo.trim(), sesion.nombre);
-  revalidatePath("/justificantes");
-  return { ok: true, data: { id } };
+  try {
+    const id = await crearJustificante({
+      alumnoId: datos.alumnoId,
+      fechaInicio: datos.fechaInicio,
+      fechaFin: datos.fechaFin,
+      tipo: datos.tipo,
+      motivo: datos.motivo.trim(),
+      autorizadoPor: sesion.nombre,
+    });
+    revalidatePath("/justificantes");
+    return { ok: true, data: { id } };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "No se pudo guardar el justificante" };
+  }
 }
 
 export async function eliminarJustificanteAction(justificanteId: string): Promise<Resultado<null>> {
