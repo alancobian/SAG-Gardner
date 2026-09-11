@@ -37,7 +37,7 @@ export default function Sidebar() {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex h-full w-[220px] shrink-0 flex-col justify-between border-r border-black/5 bg-white py-6 transition-transform duration-200 ease-out md:static md:z-auto md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex h-full w-[220px] shrink-0 flex-col justify-between bg-gardner-azul-oscuro py-6 shadow-xl transition-transform duration-200 ease-out md:static md:z-auto md:translate-x-0 ${
           abierto ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -49,16 +49,16 @@ export default function Sidebar() {
                 alt="SAG"
                 width={40}
                 height={40}
-                className="h-10 w-10 shrink-0 rounded-full object-cover"
+                className="h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-white/15"
               />
               <div>
-                <h1 className="text-xl font-bold leading-tight text-gardner-azul-oscuro">SAG</h1>
-                <p className="text-xs font-medium text-gardner-gris/70">Administración</p>
+                <h1 className="text-xl font-bold leading-tight text-white">SAG</h1>
+                <p className="text-xs font-medium text-white/60">Instituto Gardner</p>
               </div>
             </div>
             <button
               onClick={cerrar}
-              className="rounded-full p-1 text-gardner-gris/60 hover:bg-gardner-gris/10 hover:text-gardner-gris md:hidden"
+              className="rounded-full p-1 text-white/60 hover:bg-white/10 hover:text-white md:hidden"
               aria-label="Cerrar menú"
             >
               <span className="material-symbols-outlined text-[22px]">close</span>
@@ -72,10 +72,10 @@ export default function Sidebar() {
                   key={item.id}
                   href={item.href}
                   onClick={cerrar}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                  className={`flex items-center gap-3 rounded-lg border-l-4 px-3 py-2.5 text-sm transition-colors ${
                     activo
-                      ? "border-l-4 border-gardner-azul-oscuro bg-gardner-azul pl-2 font-semibold text-white shadow-sm"
-                      : "border-l-4 border-transparent font-medium text-gardner-gris hover:bg-gardner-azul/10 hover:text-gardner-azul-oscuro"
+                      ? "border-white bg-gardner-azul font-semibold text-white shadow-sm"
+                      : "border-transparent font-medium text-white/70 hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   <span
@@ -90,10 +90,10 @@ export default function Sidebar() {
             })}
           </nav>
         </div>
-        <div className="px-3">
+        <div className="flex flex-col gap-3 px-3">
           <button
             onClick={cerrarSesion}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-gardner-gris/80 transition-colors hover:bg-gardner-gris/10 hover:text-gardner-gris"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-white/55 transition-colors hover:bg-white/10 hover:text-white"
           >
             <span className="material-symbols-outlined text-[20px]">logout</span>
             Cerrar sesión
