@@ -41,10 +41,19 @@ function iniciales(nombre: string) {
     .toUpperCase();
 }
 
+// Las horas se guardan con el truco de "UTC falso": lib/escaneo.ts calcula la
+// hora local de Mexico (UTC-6) y la almacena etiquetada como +00:00, de modo
+// que los campos UTC del timestamp YA son la hora de pared correcta. Por eso
+// se formatea con timeZone "UTC": sin eso el navegador volveria a restar 6
+// horas y una entrada de las 07:00 a.m. se mostraria como 01:00 a.m.
 function formatoHora(iso: string | null) {
   if (!iso) return null;
   try {
-    return new Date(iso).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+    return new Date(iso).toLocaleTimeString("es-MX", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "UTC",
+    });
   } catch {
     return null;
   }
