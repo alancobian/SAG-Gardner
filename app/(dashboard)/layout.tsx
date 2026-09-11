@@ -19,10 +19,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <SidebarProvider>
-    <div className="flex min-h-screen w-full bg-gardner-neutro">
+    {/* Shell de altura fija: el contenedor mide exactamente el alto de la
+        ventana (dvh para que en móvil no lo rompa la barra del navegador) y el
+        único que hace scroll es <main>. Así el sidebar siempre cubre todo el
+        alto y el menú queda visible aunque la lista de grupos sea larga.
+        Con min-h-screen el sidebar solo crecía lo que medía su contenido. */}
+    <div className="flex h-dvh w-full overflow-hidden bg-gardner-neutro">
       <Sidebar pendientesJustificantes={pendientesJustificantes} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-gardner-gris/15 bg-white px-6 py-3">
+        <header className="flex shrink-0 items-center justify-between border-b border-gardner-gris/15 bg-white px-6 py-3">
           <div className="flex items-center gap-2">
             <MenuButton />
             <div className="hidden items-center sm:flex">
