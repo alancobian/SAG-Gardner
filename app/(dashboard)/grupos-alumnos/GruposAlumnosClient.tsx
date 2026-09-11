@@ -8,7 +8,7 @@ import { listarGruposAction, listarAlumnosPorGrupoAction, obtenerFichaAlumnoActi
 
 const ESTADO_ESTILOS: Record<string, string> = {
   Activo: "bg-estado-puntual/10 text-estado-puntual",
-  Inactivo: "bg-black/5 text-gardner-gris/65",
+  Inactivo: "bg-gardner-gris/10 text-gardner-gris/65",
   Baja: "bg-estado-ausente/10 text-gardner-gris",
 };
 
@@ -102,7 +102,7 @@ function PanelDetalle({
       >
         <div
           className="relative flex h-20 shrink-0 items-start justify-between px-6 py-4"
-          style={{ background: "linear-gradient(135deg, #007dc4 0%, #005386 100%)" }}
+          style={{ background: "linear-gradient(135deg, var(--color-gardner-azul) 0%, var(--color-gardner-azul-oscuro) 100%)" }}
         >
           <h2 className="text-sm font-semibold text-white/90">Ficha del alumno</h2>
           <div className="flex items-center gap-2">
@@ -140,7 +140,7 @@ function PanelDetalle({
 
             <div className="flex items-center justify-center gap-2">
               <span className="text-xs font-semibold text-gardner-gris/75">Estatus:</span>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ESTADO_ESTILOS[ficha.estatus] ?? "bg-black/5"}`}>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ESTADO_ESTILOS[ficha.estatus] ?? "bg-gardner-gris/10"}`}>
                 {ficha.estatus}
               </span>
             </div>
@@ -196,7 +196,7 @@ function PanelDetalle({
                 {ficha.historial.slice(0, 15).map((h, i) => (
                   <li key={i} className="flex items-center justify-between py-2 text-sm">
                     <span className="text-gardner-gris/70">{formatoFecha(h.fecha)}</span>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ESTADO_ESTILOS[h.estatus] ?? "bg-black/5 text-gardner-gris"}`}>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ESTADO_ESTILOS[h.estatus] ?? "bg-gardner-gris/10 text-gardner-gris"}`}>
                       {h.estatus}
                     </span>
                   </li>
@@ -426,7 +426,7 @@ export default function GruposAlumnosClient({ puedeEditar }: { puedeEditar: bool
                 <Iniciales nombre={a.nombre} anillo={ESTADO_ANILLO[a.estatus]} foto={a.foto} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-gardner-gris">{a.nombre}</p>
-                  <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${ESTADO_ESTILOS[a.estatus] ?? "bg-black/5"}`}>
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${ESTADO_ESTILOS[a.estatus] ?? "bg-gardner-gris/10"}`}>
                     {a.estatus}
                   </span>
                 </div>

@@ -53,7 +53,7 @@ export default function LoginForm() {
             value={correo}
             onChange={(e) => setCorreo(e.target.value)}
             placeholder="ejemplo@institutogardner.edu.mx"
-            className="w-full rounded-lg border border-black/10 py-3 pl-10 pr-3 text-sm outline-none transition focus:border-gardner-azul focus:ring-2 focus:ring-gardner-azul/20"
+            className="w-full rounded-lg border border-gardner-gris/20 py-3 pl-10 pr-3 text-sm outline-none transition focus:border-gardner-azul focus:ring-2 focus:ring-gardner-azul/20"
           />
         </div>
       </div>
@@ -77,7 +77,7 @@ export default function LoginForm() {
             value={pin}
             onChange={(e) => setPin(e.target.value)}
             placeholder="••••••"
-            className="w-full rounded-lg border border-black/10 py-3 pl-10 pr-10 text-sm tracking-widest outline-none transition focus:border-gardner-azul focus:ring-2 focus:ring-gardner-azul/20"
+            className="w-full rounded-lg border border-gardner-gris/20 py-3 pl-10 pr-10 text-sm tracking-widest outline-none transition focus:border-gardner-azul focus:ring-2 focus:ring-gardner-azul/20"
           />
           <button
             type="button"

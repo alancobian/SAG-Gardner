@@ -15,7 +15,7 @@ const ESTADO_ESTILOS: Record<string, string> = {
 const ESTADO_TEXTO: Record<string, string> = {
   Puntual: "text-estado-puntual",
   Retardo: "text-estado-retardo",
-  Ausente: "text-red-500",
+  Ausente: "text-estado-ausente",
 };
 
 const ESTADO_ANILLO: Record<string, string> = {
@@ -27,7 +27,7 @@ const ESTADO_ANILLO: Record<string, string> = {
 const RESUMEN_TARJETAS = [
   { clave: "puntual" as const, titulo: "Puntuales", icono: "check_circle", color: "var(--color-estado-puntual)", nota: "Alumnos a tiempo" },
   { clave: "retardo" as const, titulo: "Retardos", icono: "directions_run", color: "var(--color-estado-retardo)", nota: "Llegaron tarde" },
-  { clave: "ausente" as const, titulo: "Ausentes", icono: "person_off", color: "#ef4444", nota: "Sin registro hoy" },
+  { clave: "ausente" as const, titulo: "Ausentes", icono: "person_off", color: "var(--color-estado-ausente)", nota: "Sin registro hoy" },
   { clave: "total" as const, titulo: "Total alumnos", icono: "groups", color: "var(--color-gardner-azul-oscuro)", nota: "Matrícula activa" },
 ];
 
@@ -182,7 +182,7 @@ function FichaAlumnoDetalle({
 
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-gardner-gris/70">Estatus:</span>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ESTADO_ESTILOS[ficha.estatus] ?? "bg-black/5"}`}>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ESTADO_ESTILOS[ficha.estatus] ?? "bg-gardner-gris/10"}`}>
                 {ficha.estatus}
               </span>
               <span className="ml-auto text-xs text-gardner-gris/50">{ficha.codigoQr}</span>
@@ -216,7 +216,7 @@ function FichaAlumnoDetalle({
                 {ficha.historial.slice(0, 15).map((h, i) => (
                   <li key={i} className="flex items-center justify-between py-1.5 text-xs">
                     <span className="font-medium text-gardner-gris/80">{formatoFecha(h.fecha)}</span>
-                    <span className={`rounded-full px-2 py-0.5 font-semibold ${ESTADO_ESTILOS[h.estatus] ?? "bg-black/5 text-gardner-gris"}`}>
+                    <span className={`rounded-full px-2 py-0.5 font-semibold ${ESTADO_ESTILOS[h.estatus] ?? "bg-gardner-gris/10 text-gardner-gris"}`}>
                       {h.estatus}
                     </span>
                   </li>
@@ -443,7 +443,7 @@ export default function AsistenciaClient({ reporte, puedeEditar }: { reporte: Re
                       {conteos.map((c) => (
                         <span
                           key={c.clave}
-                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ESTADO_ESTILOS[c.clave] ?? "bg-black/5 text-gardner-gris"}`}
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ESTADO_ESTILOS[c.clave] ?? "bg-gardner-gris/10 text-gardner-gris"}`}
                         >
                           {c.n} {c.clave}
                         </span>

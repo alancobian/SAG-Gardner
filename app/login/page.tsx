@@ -6,7 +6,8 @@ export default function LoginPage() {
     <div
       className="flex min-h-screen w-full items-center justify-center p-4"
       style={{
-        background: "radial-gradient(circle at center, #007dc4 0%, #005386 100%)",
+        background:
+          "radial-gradient(circle at center, var(--color-gardner-azul) 0%, var(--color-gardner-azul-oscuro) 100%)",
       }}
     >
       <main className="w-full max-w-md">

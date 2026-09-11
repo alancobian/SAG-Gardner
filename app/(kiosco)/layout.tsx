@@ -17,7 +17,7 @@ export default async function KioscoLayout({ children }: { children: React.React
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-gardner-neutro">
-      <header className="flex items-center justify-between border-b border-black/5 bg-white px-5 py-3">
+      <header className="flex items-center justify-between border-b border-gardner-gris/15 bg-white px-5 py-3">
         <div className="flex items-center gap-2.5">
           <Image
             src="/img/monograma-sag.png"
