@@ -3,6 +3,7 @@
 // post_actualizarAlumno y post_eliminarAlumno (http-functions-supabase.js).
 
 import { supaGet, supaUpdate, supaDelete, supaInsert, eqP, ilikeP, qs } from "./supabaseAdmin";
+import { fechaHoyMx } from "./reportes";
 
 type GrupoRef = { id: string; nombre: string } | null;
 
@@ -37,8 +38,12 @@ export async function buscarAlumnos(termino: string): Promise<AlumnoBusqueda[]> 
 export type AlumnoRoster = {
   id: string;
   nombre: string;
+  // Estatus de inscripcion (Activo / Inactivo / Baja), no de asistencia.
   estatus: string;
   foto: string | null;
+  codigoQr: string | null;
+  // Asistencia de hoy. Null = todavia no ha pasado su credencial.
+  asistenciaHoy: { estatus: string; horaEntrada: string | null } | null;
 };
 
 type AlumnoRosterRow = {
@@ -46,14 +51,34 @@ type AlumnoRosterRow = {
   nombre: string;
   estatus: string;
   foto_url: string | null;
+  codigo_qr: string | null;
 };
 
 export async function listarAlumnosPorGrupo(grupoId: string): Promise<AlumnoRoster[]> {
   const rows = await supaGet<AlumnoRosterRow>(
     "alumnos",
-    qs([eqP("grupo_id", grupoId), "select=id,nombre,estatus,foto_url", "order=nombre.asc", "limit=200"])
+    qs([eqP("grupo_id", grupoId), "select=id,nombre,estatus,foto_url,codigo_qr", "order=nombre.asc", "limit=200"])
   );
-  return rows.map((a) => ({ id: a.id, nombre: a.nombre, estatus: a.estatus, foto: a.foto_url || null }));
+
+  // La tarjeta de cada alumno muestra si ya entro hoy y a que hora, asi que se
+  // cruza el roster contra los registros del dia en una sola consulta extra.
+  const registros = await supaGet<{ alumno_id: string; estatus: string; hora_entrada: string | null }>(
+    "registros_asistencia",
+    qs([eqP("fecha", fechaHoyMx()), "select=alumno_id,estatus,hora_entrada", "limit=1000"])
+  );
+  const porAlumno = new Map(registros.map((r) => [r.alumno_id, r]));
+
+  return rows.map((a) => {
+    const registro = porAlumno.get(a.id);
+    return {
+      id: a.id,
+      nombre: a.nombre,
+      estatus: a.estatus,
+      foto: a.foto_url || null,
+      codigoQr: a.codigo_qr || null,
+      asistenciaHoy: registro ? { estatus: registro.estatus, horaEntrada: registro.hora_entrada } : null,
+    };
+  });
 }
 
 export type Tutor = {

@@ -18,6 +18,36 @@ const ESTADO_ANILLO: Record<string, string> = {
   Baja: "ring-estado-retardo",
 };
 
+// Los de arriba son estatus de inscripcion; estos son de asistencia del dia y
+// son los que pintan la tarjeta del alumno en el roster.
+const ESTADO_ESTILOS_ASISTENCIA: Record<string, string> = {
+  Puntual: "bg-estado-puntual/10 text-estado-puntual",
+  Retardo: "bg-estado-retardo/10 text-estado-retardo",
+  Ausente: "bg-gardner-gris/10 text-gardner-gris/70",
+};
+
+const ESTADO_ANILLO_ASISTENCIA: Record<string, string> = {
+  Puntual: "ring-estado-puntual",
+  Retardo: "ring-estado-retardo",
+  Ausente: "ring-estado-ausente",
+};
+
+// Ver nota en lib/escaneo.ts: las horas se guardan como hora local de Mexico
+// etiquetada UTC, asi que se formatean con timeZone "UTC" para no restar 6 h
+// de mas.
+function formatoHora(iso: string | null) {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleTimeString("es-MX", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "UTC",
+    });
+  } catch {
+    return null;
+  }
+}
+
 const ORDEN_NIVEL = ["Preescolar", "Primaria", "Secundaria", "Preparatoria"];
 
 // Muestra la foto real del alumno cuando existe (foto_url); si no hay foto
@@ -412,26 +442,63 @@ export default function GruposAlumnosClient({ puedeEditar }: { puedeEditar: bool
           {!cargandoAlumnos && alumnos.length === 0 && (
             <p className="text-sm text-gardner-gris/65">Este grupo no tiene alumnos activos.</p>
           )}
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {alumnos.map((a) => (
-              <button
-                key={a.id}
-                onClick={() => setAlumnoAbierto(a.id)}
-                className={`flex items-center gap-3 rounded-xl border p-3 text-left transition ${
-                  alumnoAbierto === a.id
-                    ? "border-gardner-azul bg-gardner-azul/10"
-                    : "border-gardner-gris/15 hover:border-gardner-azul/50 hover:bg-gardner-azul/10"
-                }`}
-              >
-                <Iniciales nombre={a.nombre} anillo={ESTADO_ANILLO[a.estatus]} foto={a.foto} />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-gardner-gris">{a.nombre}</p>
-                  <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${ESTADO_ESTILOS[a.estatus] ?? "bg-gardner-gris/10"}`}>
-                    {a.estatus}
-                  </span>
-                </div>
-              </button>
-            ))}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+            {alumnos.map((a) => {
+              // El anillo de la foto y la pildora de abajo reflejan la
+              // asistencia de HOY; el estatus de inscripcion solo se marca
+              // cuando el alumno no esta activo, que es la excepcion.
+              const asistencia = a.asistenciaHoy?.estatus ?? "Ausente";
+              const hora = formatoHora(a.asistenciaHoy?.horaEntrada ?? null);
+              const seleccionado = alumnoAbierto === a.id;
+              return (
+                <button
+                  key={a.id}
+                  onClick={() => setAlumnoAbierto(a.id)}
+                  className={`group relative flex flex-col items-center rounded-2xl border-2 p-5 text-center transition-all hover:-translate-y-0.5 ${
+                    seleccionado
+                      ? "border-gardner-azul bg-gradient-to-b from-gardner-azul/5 to-white shadow-md"
+                      : "border-gardner-gris/15 bg-white hover:border-gardner-azul/40 hover:shadow-md"
+                  }`}
+                >
+                  {seleccionado && (
+                    <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-gardner-azul ring-4 ring-gardner-azul/15" />
+                  )}
+
+                  <div className="mb-3.5 p-1">
+                    <Iniciales nombre={a.nombre} anillo={ESTADO_ANILLO_ASISTENCIA[asistencia]} foto={a.foto} size={20} />
+                  </div>
+
+                  <h3 className="text-[15px] font-bold leading-snug text-gardner-gris transition-colors group-hover:text-gardner-azul-oscuro">
+                    {a.nombre}
+                  </h3>
+                  {a.codigoQr && (
+                    <p className="mt-0.5 font-mono text-[11px] text-gardner-gris/45">{a.codigoQr}</p>
+                  )}
+                  {a.estatus !== "Activo" && (
+                    <span className="mt-1 rounded-full bg-gardner-gris/10 px-2 py-0.5 text-[10px] font-semibold text-gardner-gris/70">
+                      {a.estatus}
+                    </span>
+                  )}
+
+                  <div
+                    className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                      ESTADO_ESTILOS_ASISTENCIA[asistencia] ?? "bg-gardner-gris/10 text-gardner-gris/70"
+                    }`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        asistencia === "Puntual"
+                          ? "bg-estado-puntual"
+                          : asistencia === "Retardo"
+                            ? "bg-estado-retardo"
+                            : "bg-estado-ausente"
+                      }`}
+                    />
+                    {hora ? `${asistencia} ${hora}` : asistencia}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

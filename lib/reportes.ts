@@ -147,6 +147,13 @@ async function obtenerComparativa(fecha: string, totalAlumnos: number): Promise<
   return null;
 }
 
+// Fecha de hoy en Mexico, en formato "YYYY-MM-DD". Se exporta porque otras
+// consultas (el roster de un grupo, por ejemplo) necesitan el mismo criterio
+// de "hoy" que el reporte, y no deben reimplementarlo por su cuenta.
+export function fechaHoyMx(): string {
+  return fechaComoTextoMx(new Date());
+}
+
 function fechaComoTextoMx(fecha: Date) {
   // Mexico (mayor parte del pais) esta fijo en UTC-6 desde 2022 (sin horario
   // de verano) -- mismo criterio ya usado en el backend de Bloque 1.
