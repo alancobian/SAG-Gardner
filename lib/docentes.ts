@@ -66,6 +66,17 @@ export type FichaDocente = {
   estatus: string;
   codigoQr: string;
   foto: string | null;
+  // Datos administrativos de la ficha (migracion 1). Quedan en null mientras
+  // no se capturen, y la UI simplemente no pinta esa fila.
+  numeroEmpleado: string | null;
+  departamento: string | null;
+  especialidad: string | null;
+  fechaIngreso: string | null;
+  // No se guarda: se deduce de si el docente tiene bloques de horario propios
+  // (por horas) o usa el horario institucional (tiempo completo).
+  tipoContrato: "Tiempo completo" | "Por horas";
+  // Grupos de los que es titular, para la linea "Titular de 5° grado A".
+  gruposTitular: string[];
   bloques: BloqueHorario[];
   historial: { fecha: string; estatus: string; horaEntrada: string | null; horaSalida: string | null }[];
   stats: { totalRegistros: number; totalRetardos: number };
@@ -80,6 +91,10 @@ type FichaDocenteRow = {
   estatus: string;
   codigo_qr: string;
   foto_url: string | null;
+  numero_empleado?: string | null;
+  departamento?: string | null;
+  especialidad?: string | null;
+  fecha_ingreso?: string | null;
 };
 
 type RegistroDocenteRow = {
@@ -105,6 +120,20 @@ export async function obtenerFichaDocente(docenteId: string): Promise<FichaDocen
     ),
   ]);
 
+  // Grupos donde este docente es el titular. La columna la agrega la migracion
+  // 1, asi que la consulta va con red de seguridad: si aun no existe, la ficha
+  // se muestra igual, solo sin esa linea.
+  let gruposTitular: string[] = [];
+  try {
+    const rows = await supaGet<{ nombre: string }>(
+      "grupos",
+      qs([eqP("docente_titular_id", docente.id), "select=nombre", "order=nombre.asc"])
+    );
+    gruposTitular = rows.map((g) => g.nombre);
+  } catch {
+    gruposTitular = [];
+  }
+
   return {
     id: docente.id,
     nombre: docente.nombre,
@@ -114,6 +143,12 @@ export async function obtenerFichaDocente(docenteId: string): Promise<FichaDocen
     estatus: docente.estatus,
     codigoQr: docente.codigo_qr,
     foto: docente.foto_url || null,
+    numeroEmpleado: docente.numero_empleado ?? null,
+    departamento: docente.departamento ?? null,
+    especialidad: docente.especialidad ?? null,
+    fechaIngreso: docente.fecha_ingreso ?? null,
+    tipoContrato: bloquesRows.length > 0 ? "Por horas" : "Tiempo completo",
+    gruposTitular,
     bloques: bloquesRows.map((b) => ({
       id: b.id,
       diaSemana: b.dia_semana,

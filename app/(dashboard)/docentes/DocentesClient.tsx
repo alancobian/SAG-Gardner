@@ -193,7 +193,12 @@ function FichaPanel({
                     className="w-full max-w-xs rounded-lg border border-gardner-gris/25 px-2 py-1 text-center text-base font-semibold"
                   />
                 ) : (
-                  <p className="break-words text-xl font-bold leading-snug text-gardner-gris">{ficha.nombre}</p>
+                  <>
+                    <p className="break-words text-xl font-bold leading-snug text-gardner-gris">{ficha.nombre}</p>
+                    {ficha.numeroEmpleado && (
+                      <p className="mt-0.5 font-mono text-xs text-gardner-gris/50">ID: {ficha.numeroEmpleado}</p>
+                    )}
+                  </>
                 )}
                 {editando ? (
                   <select
@@ -230,6 +235,55 @@ function FichaPanel({
                   {ficha.estatus}
                 </span>
               )}
+            </div>
+
+            {/* Información general del diseño de Stitch. Cada dato se omite si
+                todavía no se ha capturado, para no dejar filas vacías. */}
+            <div>
+              <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-gardner-gris">
+                <span className="material-symbols-outlined text-[16px] text-gardner-gris/55">badge</span>
+                Información general
+              </h3>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+                {ficha.departamento && (
+                  <div>
+                    <dt className="text-[11px] font-medium uppercase tracking-wide text-gardner-gris/50">Departamento</dt>
+                    <dd className="text-xs font-semibold text-gardner-gris">{ficha.departamento}</dd>
+                  </div>
+                )}
+                {ficha.especialidad && (
+                  <div>
+                    <dt className="text-[11px] font-medium uppercase tracking-wide text-gardner-gris/50">Especialidad</dt>
+                    <dd className="text-xs font-semibold text-gardner-gris">{ficha.especialidad}</dd>
+                  </div>
+                )}
+                {ficha.fechaIngreso && (
+                  <div>
+                    <dt className="text-[11px] font-medium uppercase tracking-wide text-gardner-gris/50">Ingreso</dt>
+                    <dd className="text-xs font-semibold text-gardner-gris">
+                      {new Date(ficha.fechaIngreso + "T12:00:00").toLocaleDateString("es-MX", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </dd>
+                  </div>
+                )}
+                <div>
+                  <dt className="text-[11px] font-medium uppercase tracking-wide text-gardner-gris/50">
+                    Tipo de contrato
+                  </dt>
+                  <dd className="text-xs font-semibold text-gardner-gris">{ficha.tipoContrato}</dd>
+                </div>
+                {ficha.gruposTitular.length > 0 && (
+                  <div className="col-span-2">
+                    <dt className="text-[11px] font-medium uppercase tracking-wide text-gardner-gris/50">
+                      Titular de
+                    </dt>
+                    <dd className="text-xs font-semibold text-gardner-gris">{ficha.gruposTitular.join(", ")}</dd>
+                  </div>
+                )}
+              </dl>
             </div>
 
             <div>
