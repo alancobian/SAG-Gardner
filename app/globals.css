@@ -33,18 +33,20 @@ body {
   color: var(--foreground);
 }
 
-/* Línea de barrido del visor del kiosco: recorre el círculo de arriba a abajo
-   para que se lea como un lector activo (diseño de Stitch). Solo se aplica
-   bajo motion-safe, así que respeta "reducir movimiento" del sistema. */
+/* Línea de barrido del visor del kiosco: recorre el marco de arriba a abajo
+   para que se lea como un lector activo (diseño de Stitch). Se anima 'top' en
+   porcentaje y no un desplazamiento en píxeles, para que funcione igual sin
+   importar qué tan grande sea el visor en la tablet. Solo bajo motion-safe,
+   así que respeta "reducir movimiento" del sistema. */
 @keyframes barrido {
   0% {
-    transform: translateY(0);
+    top: 0;
   }
   50% {
-    transform: translateY(400px);
+    top: calc(100% - 4px);
   }
   100% {
-    transform: translateY(0);
+    top: 0;
   }
 }
 

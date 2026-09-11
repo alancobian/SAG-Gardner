@@ -267,10 +267,12 @@ export default function EscaneoClient() {
           <p className="mt-4 font-mono text-5xl font-bold tabular-nums text-white/95">{reloj}</p>
         </div>
 
-        {/* Visor circular: la camara se recorta en circulo, con las esquinas y la
-            linea de barrido del diseño para que se lea como un lector. */}
+        {/* Visor cuadrado: el QR tambien lo es, asi que un marco cuadrado deja
+            acercar mas la credencial sin que se salga del encuadre. Lleva las
+            esquinas y la linea de barrido del diseño para que se lea como un
+            lector activo. */}
         <div className="relative aspect-square w-full max-w-[400px]">
-          <div className="absolute inset-0 overflow-hidden rounded-full border-4 border-dashed border-white/30 bg-black/20">
+          <div className="absolute inset-0 overflow-hidden rounded-3xl border-4 border-dashed border-white/30 bg-black/20">
             <video ref={videoRef} muted playsInline className="h-full w-full object-cover opacity-90" />
             {!procesando && (
               <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-white/80 shadow-[0_0_15px_rgba(255,255,255,0.8)] motion-safe:animate-[barrido_2.5s_ease-in-out_infinite]" />
@@ -278,14 +280,14 @@ export default function EscaneoClient() {
           </div>
           <canvas ref={canvasRef} className="hidden" />
 
-          {/* Esquinas de encuadre */}
-          <div className="pointer-events-none absolute left-10 top-10 h-8 w-8 rounded-tl-lg border-l-4 border-t-4 border-white/80" />
-          <div className="pointer-events-none absolute right-10 top-10 h-8 w-8 rounded-tr-lg border-r-4 border-t-4 border-white/80" />
-          <div className="pointer-events-none absolute bottom-10 left-10 h-8 w-8 rounded-bl-lg border-b-4 border-l-4 border-white/80" />
-          <div className="pointer-events-none absolute bottom-10 right-10 h-8 w-8 rounded-br-lg border-b-4 border-r-4 border-white/80" />
+          {/* Esquinas de encuadre, pegadas a las esquinas del marco */}
+          <div className="pointer-events-none absolute left-4 top-4 h-9 w-9 rounded-tl-xl border-l-4 border-t-4 border-white/80" />
+          <div className="pointer-events-none absolute right-4 top-4 h-9 w-9 rounded-tr-xl border-r-4 border-t-4 border-white/80" />
+          <div className="pointer-events-none absolute bottom-4 left-4 h-9 w-9 rounded-bl-xl border-b-4 border-l-4 border-white/80" />
+          <div className="pointer-events-none absolute bottom-4 right-4 h-9 w-9 rounded-br-xl border-b-4 border-r-4 border-white/80" />
 
           {camaraError && (
-            <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/85 p-10 text-center">
+            <div className="absolute inset-0 flex items-center justify-center rounded-3xl bg-black/85 p-10 text-center">
               <p className="text-sm text-white/90">{camaraError}</p>
             </div>
           )}
