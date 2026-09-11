@@ -15,31 +15,36 @@ export default async function KioscoLayout({ children }: { children: React.React
   const sesion = await obtenerSesion();
   if (!sesion) redirect("/login");
 
+  // Pantalla inmersiva: el kiosco vive en una tablet fija en la entrada, no en
+  // un escritorio, asi que va a pantalla completa sobre el azul institucional
+  // (diseño "Kiosco de Acceso - SAG Gardner" de Stitch) en vez del shell claro
+  // del panel administrativo.
   return (
-    <div className="flex min-h-screen w-full flex-col bg-gardner-neutro">
-      <header className="flex items-center justify-between border-b border-gardner-gris/15 bg-white px-5 py-3">
-        <div className="flex items-center gap-2.5">
+    <div
+      className="flex min-h-screen w-full flex-col text-white"
+      style={{
+        background:
+          "radial-gradient(circle at 50% 30%, var(--color-gardner-azul) 0%, var(--color-gardner-azul-oscuro) 70%)",
+      }}
+    >
+      <header className="flex items-center justify-between gap-4 px-6 py-5">
+        <div className="flex items-center gap-3">
           <Image
             src="/img/monograma-sag.png"
             alt="SAG"
-            width={32}
-            height={32}
-            className="h-8 w-8 shrink-0 rounded-full object-cover"
+            width={36}
+            height={36}
+            className="h-9 w-9 shrink-0 rounded-full object-cover ring-2 ring-white/20"
           />
-          <div className="leading-tight">
-            <p className="text-sm font-bold text-gardner-azul-oscuro">SAG · Acceso</p>
-            <p className="text-[11px] font-medium text-gardner-gris/60">Instituto Gardner</p>
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
+            <span className="text-sm font-semibold text-white/90">Sesión: {sesion.nombre}</span>
+            <span className="hidden text-white/30 sm:inline">·</span>
+            <CerrarSesionBoton />
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="hidden text-right leading-tight sm:block">
-            <p className="text-xs font-semibold text-gardner-gris">{sesion.nombre}</p>
-            <p className="text-[11px] text-gardner-gris/60">{sesion.rol}</p>
-          </div>
-          <CerrarSesionBoton />
-        </div>
+        <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/75">{sesion.rol}</span>
       </header>
-      <main className="flex-1 p-4 sm:p-6">{children}</main>
+      <main className="flex flex-1 flex-col px-4 pb-6 sm:px-6">{children}</main>
     </div>
   );
 }

@@ -95,7 +95,23 @@ const ESTILO_RESULTADO: Record<
   },
 };
 
+// Reloj grande del kiosco. Se actualiza cada 15 s (basta para minutos) y se
+// monta solo en el cliente para que el HTML del servidor no llegue con una
+// hora distinta a la del navegador.
+function useReloj() {
+  const [hora, setHora] = useState<string>("");
+  useEffect(() => {
+    const actualizar = () =>
+      setHora(new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }));
+    actualizar();
+    const id = setInterval(actualizar, 15000);
+    return () => clearInterval(id);
+  }, []);
+  return hora;
+}
+
 export default function EscaneoClient() {
+  const reloj = useReloj();
   const [facing, setFacing] = useState<"environment" | "user">("environment");
   const [camaraError, setCamaraError] = useState<string | null>(null);
   const [procesando, setProcesando] = useState(false);
@@ -243,55 +259,64 @@ export default function EscaneoClient() {
   }, [resultado]);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gardner-gris">Escaneo</h1>
-        <p className="text-sm text-gardner-gris/75">
-          Escanea la credencial QR del alumno o docente para registrar su entrada o salida.
-        </p>
-      </div>
+    <div className="flex flex-1 flex-col gap-6">
+      <div className="flex flex-col items-center gap-6">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Escanea tu credencial</h1>
+          <p className="mt-1.5 text-base text-white/70">Acerca el código al lector</p>
+          <p className="mt-4 font-mono text-5xl font-bold tabular-nums text-white/95">{reloj}</p>
+        </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_1fr]">
-        {/* Cámara */}
-        <div className="relative overflow-hidden rounded-2xl bg-black shadow-sm" style={{ aspectRatio: "4 / 3" }}>
-          <video ref={videoRef} muted playsInline className="h-full w-full object-cover" />
+        {/* Visor circular: la camara se recorta en circulo, con las esquinas y la
+            linea de barrido del diseño para que se lea como un lector. */}
+        <div className="relative aspect-square w-full max-w-[400px]">
+          <div className="absolute inset-0 overflow-hidden rounded-full border-4 border-dashed border-white/30 bg-black/20">
+            <video ref={videoRef} muted playsInline className="h-full w-full object-cover opacity-90" />
+            {!procesando && (
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-white/80 shadow-[0_0_15px_rgba(255,255,255,0.8)] motion-safe:animate-[barrido_2.5s_ease-in-out_infinite]" />
+            )}
+          </div>
           <canvas ref={canvasRef} className="hidden" />
 
-          {/* Anillo guía */}
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="h-[65%] w-[65%] rounded-2xl border-4 border-white/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
-          </div>
+          {/* Esquinas de encuadre */}
+          <div className="pointer-events-none absolute left-10 top-10 h-8 w-8 rounded-tl-lg border-l-4 border-t-4 border-white/80" />
+          <div className="pointer-events-none absolute right-10 top-10 h-8 w-8 rounded-tr-lg border-r-4 border-t-4 border-white/80" />
+          <div className="pointer-events-none absolute bottom-10 left-10 h-8 w-8 rounded-bl-lg border-b-4 border-l-4 border-white/80" />
+          <div className="pointer-events-none absolute bottom-10 right-10 h-8 w-8 rounded-br-lg border-b-4 border-r-4 border-white/80" />
 
           {camaraError && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/85 p-6 text-center">
+            <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/85 p-10 text-center">
               <p className="text-sm text-white/90">{camaraError}</p>
             </div>
           )}
 
           {procesando && (
-            <div className="absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-white/90 px-4 py-1.5 text-xs font-semibold text-gardner-gris shadow">
+            <div className="absolute left-1/2 top-6 -translate-x-1/2 rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-gardner-azul-oscuro shadow-lg">
               Procesando…
             </div>
           )}
-
-          {/* Controles flotantes */}
-          <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-3 px-4">
-            <button
-              onClick={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
-              className="flex items-center gap-2 rounded-full bg-white/90 px-4 py-2.5 text-sm font-semibold text-gardner-gris shadow-lg backdrop-blur transition hover:bg-white"
-            >
-              <span className="material-symbols-outlined text-[20px]">cameraswitch</span>
-              Cambiar cámara
-            </button>
-            <button
-              onClick={() => setBuscarAbierto(true)}
-              className="flex items-center gap-2 rounded-full bg-gardner-azul px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:bg-gardner-azul-oscuro"
-            >
-              <span className="material-symbols-outlined text-[20px]">person_search</span>
-              Buscar alumno
-            </button>
-          </div>
         </div>
+
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button
+            onClick={() => setBuscarAbierto(true)}
+            className="flex items-center gap-2 rounded-full bg-white px-6 py-3.5 text-sm font-bold text-gardner-azul-oscuro shadow-lg transition hover:bg-white/90"
+          >
+            <span className="material-symbols-outlined text-[20px]">person_search</span>
+            Buscar alumno
+          </button>
+          <button
+            onClick={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
+            className="flex items-center gap-2 rounded-full bg-white/15 px-5 py-3.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/25"
+            title="Cambiar entre cámara frontal y trasera"
+          >
+            <span className="material-symbols-outlined text-[20px]">cameraswitch</span>
+            Cambiar cámara
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6">
 
         {/* Histórico reciente */}
         <div className="flex flex-col rounded-2xl bg-white p-5 shadow-sm">

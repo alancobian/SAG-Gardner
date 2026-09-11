@@ -3,7 +3,7 @@
 // sin pasar por un endpoint HTTP intermedio. Misma logica, mismo contrato de
 // datos -- solo cambia la forma de invocarla.
 
-import { supaGet, eqP, qs } from "./supabaseAdmin";
+import { supaGet, supaCount, eqP, qs } from "./supabaseAdmin";
 
 type Grupo = {
   id: string;
@@ -162,6 +162,26 @@ function fechaComoTextoMx(fecha: Date) {
   const mes = String(local.getUTCMonth() + 1).padStart(2, "0");
   const dia = String(local.getUTCDate()).padStart(2, "0");
   return `${anio}-${mes}-${dia}`;
+}
+
+// Cuantas faltas de hoy siguen sin justificante. Es el numero que el sidebar
+// muestra como pendiente sobre Justificantes, asi que se calcula con conteos
+// (tres consultas que no traen filas) en vez de armar el reporte completo,
+// porque corre en cada carga del panel.
+export async function contarAusenciasSinJustificar(fechaParam?: string): Promise<number> {
+  const fecha = fechaParam || fechaHoyMx();
+  try {
+    const [activos, conRegistro, justificados] = await Promise.all([
+      supaCount("alumnos", eqP("estatus", "Activo")),
+      supaCount("registros_asistencia", eqP("fecha", fecha)),
+      supaCount("justificantes", qs([`fecha_inicio=lte.${fecha}`, `fecha_fin=gte.${fecha}`])),
+    ]);
+    return Math.max(activos - conRegistro - justificados, 0);
+  } catch {
+    // Antes de la migracion 1 las columnas del rango no existen; en ese caso
+    // no se pinta badge en vez de romper la navegacion entera.
+    return 0;
+  }
 }
 
 export async function obtenerReporteDiario(fechaParam?: string): Promise<ReporteDiario> {

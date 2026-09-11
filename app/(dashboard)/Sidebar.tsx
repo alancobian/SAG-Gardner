@@ -16,7 +16,7 @@ const ITEMS: Item[] = [
   { id: "ajustes", label: "Ajustes", href: "/ajustes", icono: "settings" },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ pendientesJustificantes = 0 }: { pendientesJustificantes?: number }) {
   const pathname = usePathname();
   const router = useRouter();
   const { abierto, cerrar } = useSidebar();
@@ -84,13 +84,26 @@ export default function Sidebar() {
                   >
                     {item.icono}
                   </span>
-                  <span>{item.label}</span>
+                  <span className="flex-1">{item.label}</span>
+                  {/* Faltas de hoy que nadie ha justificado todavia. */}
+                  {item.id === "justificantes" && pendientesJustificantes > 0 && (
+                    <span
+                      className="rounded-full bg-white/20 px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-white"
+                      title={`${pendientesJustificantes} faltas de hoy sin justificante`}
+                    >
+                      {pendientesJustificantes}
+                    </span>
+                  )}
                 </Link>
               );
             })}
           </nav>
         </div>
         <div className="flex flex-col gap-3 px-3">
+          <div className="flex items-center gap-2 px-3 text-[11px] font-medium text-white/45">
+            <span className="h-1.5 w-1.5 rounded-full bg-estado-puntual" />
+            Servicio en línea
+          </div>
           <button
             onClick={cerrarSesion}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-white/55 transition-colors hover:bg-white/10 hover:text-white"
