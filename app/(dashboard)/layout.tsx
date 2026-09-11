@@ -4,6 +4,7 @@ import { obtenerCicloEscolar } from "@/lib/calendario";
 import { contarAusenciasSinJustificar } from "@/lib/reportes";
 import Sidebar from "./Sidebar";
 import MenuButton from "./MenuButton";
+import BuscadorGlobal from "./BuscadorGlobal";
 import { SidebarProvider } from "./SidebarContext";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -31,18 +32,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <div className="flex items-center gap-2">
             <MenuButton />
             <div className="hidden items-center sm:flex">
-              <div className="relative w-72">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-gardner-gris/60">
-                  search
-                </span>
-                <input
-                  type="text"
-                  placeholder="Buscar (próximamente)…"
-                  disabled
-                  title="El buscador global todavía no está conectado"
-                  className="w-full cursor-not-allowed rounded-lg border-none bg-gardner-neutro py-2 pl-10 pr-3 text-sm text-gardner-gris outline-none placeholder:text-gardner-gris/50"
-                />
-              </div>
+              <BuscadorGlobal />
             </div>
           </div>
           <div className="flex items-center gap-3">

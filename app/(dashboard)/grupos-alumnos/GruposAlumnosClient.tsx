@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import type { Grupo } from "@/lib/grupos";
 import type { AlumnoBusqueda, AlumnoRoster, FichaAlumno } from "@/lib/alumnos";
 import { listarGruposAction, listarAlumnosPorGrupoAction, obtenerFichaAlumnoAction, buscarAlumnosAction } from "./actions";
@@ -249,6 +250,14 @@ export default function GruposAlumnosClient({ puedeEditar }: { puedeEditar: bool
   const [cargandoGrupos, setCargandoGrupos] = useState(true);
   const [cargandoAlumnos, setCargandoAlumnos] = useState(false);
   const [alumnoAbierto, setAlumnoAbierto] = useState<string | null>(null);
+  const parametros = useSearchParams();
+
+  // El buscador global de la topbar llega con ?alumno=<id>: se abre su ficha
+  // directo, sin que haya que ubicar primero su grupo.
+  useEffect(() => {
+    const id = parametros.get("alumno");
+    if (id) setAlumnoAbierto(id);
+  }, [parametros]);
 
   const [busqueda, setBusqueda] = useState("");
   const [resultadosBusqueda, setResultadosBusqueda] = useState<AlumnoBusqueda[]>([]);
@@ -375,13 +384,16 @@ export default function GruposAlumnosClient({ puedeEditar }: { puedeEditar: bool
         </div>
       </div>
 
-      <div className="flex flex-1 gap-5 overflow-hidden">
-        <aside className="flex w-60 shrink-0 flex-col gap-3 overflow-y-auto rounded-2xl bg-white p-3 shadow-sm">
-          <div className="flex flex-col gap-2">
+      <div className="flex flex-1 flex-col gap-5 overflow-hidden">
+        {/* Filtros arriba: antes eran una columna lateral, pero el roster se
+            lee mucho mejor a todo lo ancho (y es como lo plantea el diseño). */}
+        <div className="flex flex-wrap items-end gap-3 rounded-2xl bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-gardner-gris/55">Nivel</label>
             <select
               value={nivelFiltro}
               onChange={(e) => onCambiarNivel(e.target.value)}
-              className="w-full rounded-lg border border-gardner-gris/25 px-2.5 py-2 text-xs font-medium text-gardner-gris"
+              className="rounded-lg border border-gardner-gris/25 px-3 py-2 text-sm font-medium text-gardner-gris outline-none focus:border-gardner-azul focus:ring-2 focus:ring-gardner-azul/20"
             >
               <option value="">Todos los niveles</option>
               {niveles.map((n) => (
@@ -390,10 +402,14 @@ export default function GruposAlumnosClient({ puedeEditar }: { puedeEditar: bool
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-gardner-gris/55">Grado</label>
             <select
               value={gradoFiltro}
               onChange={(e) => onCambiarGrado(e.target.value)}
-              className="w-full rounded-lg border border-gardner-gris/25 px-2.5 py-2 text-xs font-medium text-gardner-gris"
+              className="rounded-lg border border-gardner-gris/25 px-3 py-2 text-sm font-medium text-gardner-gris outline-none focus:border-gardner-azul focus:ring-2 focus:ring-gardner-azul/20"
             >
               <option value="">Todos los grados</option>
               {grados.map((g) => (
@@ -404,29 +420,39 @@ export default function GruposAlumnosClient({ puedeEditar }: { puedeEditar: bool
             </select>
           </div>
 
-          <div className="flex flex-col gap-1 border-t border-gardner-gris/15 pt-2">
-            {cargandoGrupos && <p className="p-2 text-xs text-gardner-gris/65">Cargando…</p>}
-            {!cargandoGrupos && gruposFiltrados.length === 0 && (
-              <p className="p-2 text-xs text-gardner-gris/65">Sin grupos para este filtro.</p>
-            )}
-            {gruposFiltrados.map((g) => (
-              <button
-                key={g.id}
-                onClick={() => setGrupoSeleccionado(g)}
-                className={`rounded-lg px-3 py-2 text-left text-sm transition ${
-                  grupoSeleccionado?.id === g.id
-                    ? "bg-gardner-azul text-white font-semibold"
-                    : "font-medium text-gardner-gris hover:bg-gardner-azul/10"
-                }`}
-              >
-                {g.nombre}
-                <span className={`block text-xs ${grupoSeleccionado?.id === g.id ? "text-white/70" : "text-gardner-gris/55"}`}>
-                  {g.nivelAcademico}
-                </span>
-              </button>
-            ))}
+          <div className="flex min-w-[200px] flex-col gap-1">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-gardner-gris/55">Grupo</label>
+            <select
+              value={grupoSeleccionado?.id ?? ""}
+              onChange={(e) => {
+                const g = grupos.find((x) => x.id === e.target.value);
+                if (g) setGrupoSeleccionado(g);
+              }}
+              disabled={cargandoGrupos || gruposFiltrados.length === 0}
+              className="rounded-lg border border-gardner-gris/25 px-3 py-2 text-sm font-semibold text-gardner-gris outline-none focus:border-gardner-azul focus:ring-2 focus:ring-gardner-azul/20 disabled:opacity-60"
+            >
+              {cargandoGrupos && <option value="">Cargando…</option>}
+              {!cargandoGrupos && gruposFiltrados.length === 0 && <option value="">Sin grupos para este filtro</option>}
+              {gruposFiltrados.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.nombre} · {g.nivelAcademico}
+                </option>
+              ))}
+            </select>
           </div>
-        </aside>
+
+          <div className="ml-auto flex items-center gap-3 pb-2">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-gardner-gris/65">
+              <span className="h-2.5 w-2.5 rounded-full bg-estado-puntual" /> Puntual
+            </span>
+            <span className="flex items-center gap-1.5 text-xs font-medium text-gardner-gris/65">
+              <span className="h-2.5 w-2.5 rounded-full bg-estado-retardo" /> Retardo
+            </span>
+            <span className="flex items-center gap-1.5 text-xs font-medium text-gardner-gris/65">
+              <span className="h-2.5 w-2.5 rounded-full bg-estado-ausente" /> Ausente
+            </span>
+          </div>
+        </div>
 
         <div className="flex-1 overflow-y-auto rounded-2xl bg-white p-5 shadow-sm">
           {grupoSeleccionado && (

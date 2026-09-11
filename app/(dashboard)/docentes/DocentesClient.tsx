@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import type { Docente, FichaDocente, BloqueHorario } from "@/lib/docentes";
 import {
   listarDocentesAction,
@@ -522,6 +523,13 @@ export default function DocentesClient({ puedeEditar }: { puedeEditar: boolean }
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState("");
   const [docenteAbierto, setDocenteAbierto] = useState<string | null>(null);
+  const parametros = useSearchParams();
+
+  // El buscador global de la topbar llega con ?docente=<id> y abre su ficha.
+  useEffect(() => {
+    const id = parametros.get("docente");
+    if (id) setDocenteAbierto(id);
+  }, [parametros]);
 
   function cargar() {
     setCargando(true);
