@@ -17,6 +17,7 @@ type Alumno = {
   nombre: string;
   estatus: string;
   foto_url: string | null;
+  codigo_qr: string | null;
   grupo: Grupo | null;
 };
 
@@ -40,6 +41,10 @@ export type AlumnoReporte = {
   horaEntrada: string | null;
   horaSalida: string | null;
   foto: string | null;
+  codigoQr: string | null;
+  // Solo tiene sentido cuando el alumno esta Ausente: indica si esa falta ya
+  // esta cubierta por un justificante que abarque la fecha del reporte.
+  justificado: boolean;
 };
 
 export type GrupoReporte = {
@@ -47,7 +52,19 @@ export type GrupoReporte = {
   grupo: string;
   nivelAcademico: string;
   grado: string;
+  // Docente titular (tutor) del grupo. Queda en null mientras no se asigne.
+  tutor: string | null;
   alumnos: AlumnoReporte[];
+};
+
+// Comparativa contra el dia lectivo anterior con registros, para las tarjetas
+// de resumen ("vs ayer"). Se busca hacia atras en vez de restar un dia a secas
+// para no comparar un lunes contra un domingo sin clases.
+export type ComparativaDia = {
+  fecha: string;
+  puntual: number;
+  retardo: number;
+  ausente: number;
 };
 
 // Primaria y Secundaria usan el mismo patron de nombre ("1° grado A", etc.),
@@ -66,7 +83,69 @@ export type ReporteDiario = {
   tipoDia: string;
   totales: { puntual: number; retardo: number; ausente: number; total: number };
   grupos: GrupoReporte[];
+  comparativa: ComparativaDia | null;
 };
+
+// El tutor de cada grupo vive en grupos.docente_titular_id, columna que agrega
+// la migracion 1. Se consulta aparte y con red de seguridad para que el
+// dashboard siga funcionando si la migracion todavia no se ha corrido: en ese
+// caso simplemente no hay tutores y las tarjetas lo omiten.
+async function obtenerTutoresPorGrupo(): Promise<Map<string, string>> {
+  try {
+    const rows = await supaGet<{ id: string; docente_titular: { nombre: string } | null }>(
+      "grupos",
+      qs(["select=id,docente_titular:docentes!grupos_docente_titular_id_fkey(nombre)", "limit=200"])
+    );
+    const mapa = new Map<string, string>();
+    rows.forEach((g) => {
+      if (g.docente_titular) mapa.set(g.id, g.docente_titular.nombre);
+    });
+    return mapa;
+  } catch {
+    return new Map();
+  }
+}
+
+// Alumnos con una falta justificada que cubra la fecha dada. Igual que arriba,
+// depende de columnas que agrega la migracion 1 y degrada sin romper.
+async function obtenerAlumnosJustificados(fecha: string): Promise<Set<string>> {
+  try {
+    const rows = await supaGet<{ alumno_id: string }>(
+      "justificantes",
+      qs(["select=alumno_id", `fecha_inicio=lte.${fecha}`, `fecha_fin=gte.${fecha}`, "limit=1000"])
+    );
+    return new Set(rows.map((j) => j.alumno_id));
+  } catch {
+    return new Set();
+  }
+}
+
+// Retrocede dia por dia (hasta 7) hasta encontrar uno con registros, y devuelve
+// sus totales. Si no hay nada -- inicio de ciclo, vacaciones largas -- devuelve
+// null y la UI oculta la comparativa en vez de inventar un 0.
+async function obtenerComparativa(fecha: string, totalAlumnos: number): Promise<ComparativaDia | null> {
+  for (let i = 1; i <= 7; i++) {
+    const dia = new Date(fecha + "T12:00:00");
+    dia.setDate(dia.getDate() - i);
+    const fechaPrevia = dia.toISOString().slice(0, 10);
+
+    const registros = await supaGet<{ estatus: string }>(
+      "registros_asistencia",
+      qs([eqP("fecha", fechaPrevia), "select=estatus", "limit=1000"])
+    );
+    if (registros.length === 0) continue;
+
+    const puntual = registros.filter((r) => r.estatus === "Puntual").length;
+    const retardo = registros.filter((r) => r.estatus === "Retardo").length;
+    return {
+      fecha: fechaPrevia,
+      puntual,
+      retardo,
+      ausente: Math.max(totalAlumnos - registros.length, 0),
+    };
+  }
+  return null;
+}
 
 function fechaComoTextoMx(fecha: Date) {
   // Mexico (mayor parte del pais) esta fijo en UTC-6 desde 2022 (sin horario
@@ -81,10 +160,12 @@ function fechaComoTextoMx(fecha: Date) {
 export async function obtenerReporteDiario(fechaParam?: string): Promise<ReporteDiario> {
   const fecha = fechaParam || fechaComoTextoMx(new Date());
 
-  const [alumnosRows, registrosRows, calendarioRows] = await Promise.all([
+  const [alumnosRows, registrosRows, calendarioRows, tutores, justificados] = await Promise.all([
     supaGet<Alumno>("alumnos", qs([eqP("estatus", "Activo"), "select=*,grupo:grupos(*)", "limit=1000"])),
     supaGet<RegistroAsistencia>("registros_asistencia", qs([eqP("fecha", fecha), "limit=1000"])),
     supaGet<DiaCalendario>("calendario_escolar", eqP("fecha", fecha)),
+    obtenerTutoresPorGrupo(),
+    obtenerAlumnosJustificados(fecha),
   ]);
 
   const diaAlumnos = calendarioRows.find(
@@ -111,6 +192,7 @@ export async function obtenerReporteDiario(fechaParam?: string): Promise<Reporte
         grupo: grupoNombre,
         nivelAcademico: grupo ? grupo.nivel_academico : "",
         grado: grupo ? grupo.grado : "",
+        tutor: grupo ? tutores.get(grupo.id) ?? null : null,
         alumnos: [],
       });
     }
@@ -130,9 +212,16 @@ export async function obtenerReporteDiario(fechaParam?: string): Promise<Reporte
     else if (estatus === "Retardo") totalRetardo++;
     else totalAusente++;
 
-    gruposMap
-      .get(grupoId)!
-      .alumnos.push({ id: alumno.id, nombre: alumno.nombre, estatus, horaEntrada, horaSalida, foto: alumno.foto_url || null });
+    gruposMap.get(grupoId)!.alumnos.push({
+      id: alumno.id,
+      nombre: alumno.nombre,
+      estatus,
+      horaEntrada,
+      horaSalida,
+      foto: alumno.foto_url || null,
+      codigoQr: alumno.codigo_qr || null,
+      justificado: estatus === "Ausente" && justificados.has(alumno.id),
+    });
   });
 
   const grupos = Array.from(gruposMap.values()).sort((a, b) => {
@@ -142,10 +231,13 @@ export async function obtenerReporteDiario(fechaParam?: string): Promise<Reporte
     return a.grupo.localeCompare(b.grupo, "es", { numeric: true });
   });
 
+  const comparativa = await obtenerComparativa(fecha, alumnosRows.length);
+
   return {
     fecha,
     tipoDia,
     totales: { puntual: totalPuntual, retardo: totalRetardo, ausente: totalAusente, total: alumnosRows.length },
     grupos,
+    comparativa,
   };
 }

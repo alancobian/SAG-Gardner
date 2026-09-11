@@ -24,11 +24,45 @@ const ESTADO_ANILLO: Record<string, string> = {
   Ausente: "ring-estado-ausente",
 };
 
+// Para Puntuales subir es bueno; para Retardos y Ausentes, lo bueno es bajar.
+// Eso decide de que color se pinta la variacion contra el dia anterior.
 const RESUMEN_TARJETAS = [
-  { clave: "puntual" as const, titulo: "Puntuales", icono: "check_circle", color: "var(--color-estado-puntual)", nota: "Alumnos a tiempo" },
-  { clave: "retardo" as const, titulo: "Retardos", icono: "directions_run", color: "var(--color-estado-retardo)", nota: "Llegaron tarde" },
-  { clave: "ausente" as const, titulo: "Ausentes", icono: "person_off", color: "var(--color-estado-ausente)", nota: "Sin registro hoy" },
-  { clave: "total" as const, titulo: "Total alumnos", icono: "groups", color: "var(--color-gardner-azul-oscuro)", nota: "Matrícula activa" },
+  {
+    clave: "puntual" as const,
+    titulo: "Puntuales",
+    icono: "check_circle",
+    color: "var(--color-estado-puntual)",
+    unidad: "alumnos",
+    nota: "Alumnos a tiempo",
+    subirEsBueno: true,
+  },
+  {
+    clave: "retardo" as const,
+    titulo: "Retardos",
+    icono: "directions_run",
+    color: "var(--color-estado-retardo)",
+    unidad: "alumnos",
+    nota: "Llegaron tarde",
+    subirEsBueno: false,
+  },
+  {
+    clave: "ausente" as const,
+    titulo: "Ausentes",
+    icono: "person_off",
+    color: "var(--color-estado-ausente)",
+    unidad: "alumnos",
+    nota: "Sin registro hoy",
+    subirEsBueno: false,
+  },
+  {
+    clave: "total" as const,
+    titulo: "Total alumnos",
+    icono: "groups",
+    color: "var(--color-gardner-azul-oscuro)",
+    unidad: "inscritos",
+    nota: "Matrícula activa",
+    subirEsBueno: true,
+  },
 ];
 
 function iniciales(nombre: string) {
@@ -83,31 +117,69 @@ function TarjetaResumen({
   color,
   icono,
   nota,
+  unidad,
+  valorAyer,
+  subirEsBueno,
 }: {
   titulo: string;
   valor: number;
   color: string;
   icono: string;
   nota: string;
+  unidad: string;
+  valorAyer: number | null;
+  subirEsBueno: boolean;
 }) {
+  const delta = valorAyer === null ? null : valor - valorAyer;
+  // Sin cambio se pinta neutro; si cambio, el color depende de si ese
+  // movimiento es deseable para este indicador (mas puntuales = bien, mas
+  // ausentes = mal).
+  const esBueno = delta === null || delta === 0 ? null : delta > 0 === subirEsBueno;
+
   return (
-    <div
-      className="flex flex-col gap-3 rounded-2xl bg-white p-5 shadow-sm transition hover:shadow-md"
-      style={{ borderLeft: `4px solid ${color}` }}
-    >
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-bold uppercase tracking-wide text-gardner-gris/70">{titulo}</span>
+    <div className="relative flex flex-col overflow-hidden rounded-2xl border border-gardner-gris/15 bg-white p-5 shadow-sm transition hover:shadow-md">
+      <span className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: color }} />
+
+      <div className="flex items-start justify-between">
+        <span className="text-xs font-bold uppercase tracking-wider text-gardner-gris/60">{titulo}</span>
         <span
-          className="flex h-8 w-8 items-center justify-center rounded-lg"
-          style={{ backgroundColor: `color-mix(in srgb, ${color} 16%, transparent)` }}
+          className="flex h-9 w-9 items-center justify-center rounded-xl"
+          style={{ backgroundColor: `color-mix(in srgb, ${color} 14%, transparent)` }}
         >
-          <span className="material-symbols-outlined text-[18px]" style={{ color }}>
+          <span className="material-symbols-outlined text-[20px]" style={{ color }}>
             {icono}
           </span>
         </span>
       </div>
-      <span className="text-3xl font-bold text-gardner-gris">{valor}</span>
-      <span className="text-xs font-medium text-gardner-gris/60">{nota}</span>
+
+      <div className="mt-3 flex items-baseline gap-2">
+        <span className="text-[32px] font-bold leading-none tracking-tight text-gardner-gris">{valor}</span>
+        <span className="text-xs font-medium text-gardner-gris/50">{unidad}</span>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-2 border-t border-gardner-gris/10 pt-3 text-[11.5px]">
+        {delta === null ? (
+          <span className="font-medium text-gardner-gris/55">{nota}</span>
+        ) : (
+          <>
+            <span
+              className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-semibold ${
+                esBueno === null
+                  ? "bg-gardner-gris/10 text-gardner-gris/70"
+                  : esBueno
+                    ? "bg-estado-puntual/10 text-estado-puntual"
+                    : "bg-estado-retardo/10 text-estado-retardo"
+              }`}
+            >
+              <span className="material-symbols-outlined text-[14px]">
+                {delta === 0 ? "horizontal_rule" : delta > 0 ? "trending_up" : "trending_down"}
+              </span>
+              {delta === 0 ? "Sin cambio" : `${delta > 0 ? "+" : ""}${delta}`}
+            </span>
+            <span className="truncate text-gardner-gris/45">vs. ayer ({valorAyer})</span>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -320,14 +392,37 @@ function PanelAlumnos({
                           {iniciales(a.nombre)}
                         </div>
                       )}
-                      <div>
-                        <p className="text-sm font-semibold text-gardner-gris">{a.nombre}</p>
-                        {hora && <p className="text-xs font-medium text-gardner-gris/50">Entrada: {hora}</p>}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-gardner-gris">{a.nombre}</p>
+                        {hora ? (
+                          <p className="text-xs font-medium text-gardner-gris/50">
+                            Entrada: {hora}
+                            {a.codigoQr && <span className="ml-2 text-gardner-gris/35">{a.codigoQr}</span>}
+                          </p>
+                        ) : (
+                          <p className="text-xs font-medium text-gardner-gris/45">
+                            Sin registro
+                            {a.codigoQr && <span className="ml-2 text-gardner-gris/35">{a.codigoQr}</span>}
+                          </p>
+                        )}
                       </div>
                     </div>
-                    <span className={`text-sm font-semibold ${ESTADO_TEXTO[a.estatus] ?? "text-gardner-gris/50"}`}>
-                      {a.estatus}
-                    </span>
+                    <div className="flex shrink-0 flex-col items-end gap-0.5">
+                      <span className={`text-sm font-semibold ${ESTADO_TEXTO[a.estatus] ?? "text-gardner-gris/50"}`}>
+                        {a.estatus}
+                      </span>
+                      {/* Una falta solo es "sin justificar" si nadie registro un
+                          justificante que cubra el dia (ver justificantes). */}
+                      {a.estatus === "Ausente" && (
+                        <span
+                          className={`text-[10px] font-semibold uppercase tracking-wide ${
+                            a.justificado ? "text-estado-puntual" : "text-gardner-gris/40"
+                          }`}
+                        >
+                          {a.justificado ? "Justificada" : "Sin justificar"}
+                        </span>
+                      )}
+                    </div>
                   </button>
                 );
               })}
@@ -401,6 +496,11 @@ export default function AsistenciaClient({ reporte, puedeEditar }: { reporte: Re
             color={t.color}
             icono={t.icono}
             nota={t.nota}
+            unidad={t.unidad}
+            subirEsBueno={t.subirEsBueno}
+            // La matricula total no se compara contra ayer: no es un indicador
+            // del dia, y su variacion seria ruido (una alta o una baja).
+            valorAyer={t.clave === "total" || !reporte.comparativa ? null : reporte.comparativa[t.clave]}
           />
         ))}
       </div>
@@ -438,15 +538,47 @@ export default function AsistenciaClient({ reporte, puedeEditar }: { reporte: Re
                     className="flex flex-col gap-4 rounded-xl border border-gardner-gris/15 bg-white p-5 shadow-sm transition hover:border-gardner-azul/30 hover:shadow-md"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <h4 className="text-base font-bold text-gardner-gris">{g.grupo}</h4>
-                        <p className="mt-0.5 text-xs font-medium text-gardner-gris/60">{g.nivelAcademico}</p>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="truncate text-base font-bold text-gardner-gris">{g.grupo}</h4>
+                          <span
+                            className={`h-2 w-2 shrink-0 rounded-full ${
+                              pct >= 85 ? "bg-estado-puntual" : pct >= 60 ? "bg-estado-retardo" : "bg-estado-ausente"
+                            }`}
+                          />
+                        </div>
+                        {/* El tutor viene de grupos.docente_titular_id; mientras
+                            no se asigne, se muestra el nivel como antes. */}
+                        <p className="mt-0.5 truncate text-xs font-medium text-gardner-gris/60">
+                          {g.tutor ?? g.nivelAcademico}
+                        </p>
                       </div>
                       <span className={`flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-bold ${estilo.badge}`}>
-                        {pct}%
                         <span className="material-symbols-outlined text-[14px]">{estilo.icono}</span>
+                        {pct}%
                       </span>
                     </div>
+
+                    {/* Barra segmentada: de un vistazo se ve la proporcion de
+                        puntuales / retardos / ausentes del grupo. */}
+                    {totalGrupo > 0 && (
+                      <div className="flex h-2 w-full overflow-hidden rounded-full bg-gardner-gris/10">
+                        {conteos.map((c) => (
+                          <div
+                            key={c.clave}
+                            className={
+                              c.clave === "Puntual"
+                                ? "bg-estado-puntual"
+                                : c.clave === "Retardo"
+                                  ? "bg-estado-retardo"
+                                  : "bg-estado-ausente"
+                            }
+                            style={{ width: `${(c.n / totalGrupo) * 100}%` }}
+                            title={`${c.n} ${c.clave}`}
+                          />
+                        ))}
+                      </div>
+                    )}
 
                     <div className="flex flex-wrap gap-2">
                       {conteos.map((c) => (
