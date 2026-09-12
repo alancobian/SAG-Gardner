@@ -101,6 +101,33 @@ export async function supaUpdate<T = unknown>(
   return data[0];
 }
 
+/**
+ * Actualiza de golpe todas las filas que cumplan el filtro y devuelve cuantas
+ * fueron. A diferencia de supaUpdate, que esta pensado para una fila concreta,
+ * aqui se hace UNA sola llamada sin importar cuantos registros toque: el bucle
+ * de "una llamada por fila" se cae por timeout en cuanto son un par de cientos.
+ *
+ * Se pide return=minimal para no traer de vuelta el contenido de las filas, y
+ * el conteo llega en la cabecera Content-Range ("0-221/222").
+ */
+export async function supaUpdateMany(
+  table: string,
+  filterQuery: string,
+  patch: Record<string, unknown>
+): Promise<number> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filterQuery}`, {
+    method: "PATCH",
+    headers: headers({ Prefer: "return=minimal,count=exact" }),
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    throw new Error(`Supabase UPDATE ${table}: ${res.status} ${await res.text()}`);
+  }
+  const rango = res.headers.get("content-range");
+  const total = rango ? Number(rango.split("/")[1]) : NaN;
+  return Number.isFinite(total) ? total : 0;
+}
+
 export async function supaDelete(table: string, filterQuery: string): Promise<void> {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filterQuery}`, {
     method: "DELETE",

@@ -9,7 +9,7 @@
 // se mueve o se cancela, el cierre dejaría de correr en silencio y nadie se
 // enteraría hasta ver todos los registros abiertos.
 
-import { supaGet, supaUpdate, eqP, qs } from "./supabaseAdmin";
+import { supaUpdateMany, eqP, qs } from "./supabaseAdmin";
 import { fechaHoyMx } from "./reportes";
 
 /** Hora a la que se da por terminada la jornada escolar. */
@@ -29,14 +29,14 @@ export async function cerrarSalidasPendientes(fechaParam?: string): Promise<Resu
   // las salidas automáticas se vieran como 8:30 p.m.
   const salidaFija = `${fecha}T${HORA_CIERRE}:00.000Z`;
 
-  const pendientes = await supaGet<{ id: string }>(
+  // Un solo PATCH para todos los pendientes del dia. La version anterior
+  // recorria los registros uno por uno y con 222 alumnos abiertos la funcion
+  // se caia por timeout antes de terminar; asi se resuelve en una llamada.
+  const cerrados = await supaUpdateMany(
     "registros_asistencia",
-    qs([eqP("fecha", fecha), "hora_salida=is.null", "select=id", "limit=1000"])
+    qs([eqP("fecha", fecha), "hora_salida=is.null"]),
+    { hora_salida: salidaFija }
   );
 
-  for (const registro of pendientes) {
-    await supaUpdate("registros_asistencia", eqP("id", registro.id), { hora_salida: salidaFija });
-  }
-
-  return { fecha, cerrados: pendientes.length };
+  return { fecha, cerrados };
 }
