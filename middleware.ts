@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { verificarTokenSesion, SESSION_COOKIE } from "@/lib/session";
 
 // Rutas que no requieren sesion activa.
-const RUTAS_PUBLICAS = ["/login", "/api/login"];
+//
+// /api/cron no lleva sesion de usuario porque lo invoca Vercel Cron, no una
+// persona: se protege con CRON_SECRET dentro de la propia ruta. Si pasara por
+// aqui, el middleware lo mandaria a /login y el trabajo nunca correria.
+const RUTAS_PUBLICAS = ["/login", "/api/login", "/api/cron"];
 
 // Archivos de icono/OG generados por la convencion de Next.js (app/icon.png,
 // app/apple-icon.png, app/opengraph-image.png, app/favicon.ico). Deben ser

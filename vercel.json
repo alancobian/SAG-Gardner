@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/cerrar-salidas",
+      "schedule": "30 20 * * *"
+    }
+  ]
+}
