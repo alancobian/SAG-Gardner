@@ -24,7 +24,15 @@ export async function GET(request: Request) {
   }
 
   try {
-    const resultado = await cerrarSalidasPendientes();
+    // ?fecha=YYYY-MM-DD sirve para recuperar un día que se haya saltado (y para
+    // probar los filtros de día no lectivo). Sin el parámetro cierra el día de
+    // hoy, que es lo que hace el cron.
+    const fecha = new URL(request.url).searchParams.get("fecha") || undefined;
+    if (fecha && !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+      return Response.json({ ok: false, error: "fecha debe ser YYYY-MM-DD" }, { status: 400 });
+    }
+
+    const resultado = await cerrarSalidasPendientes(fecha);
     console.log(
       resultado.omitido
         ? `Cierre automático de salidas (${resultado.fecha}): omitido, no es día lectivo (${resultado.omitido}).`
