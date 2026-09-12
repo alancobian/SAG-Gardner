@@ -39,7 +39,8 @@ function formatoFecha(fecha: string) {
 }
 
 /** Verde / ámbar / rojo según qué tan lejos está del umbral. */
-function colorAsistencia(pct: number) {
+function colorAsistencia(pct: number | null) {
+  if (pct === null) return "text-gardner-gris/40";
   if (pct >= UMBRAL_RIESGO) return "text-estado-puntual";
   if (pct >= 70) return "text-estado-retardo";
   return "text-red-600";
@@ -106,7 +107,10 @@ export default function ReportesClient({
     let lista = reporte?.alumnos ?? [];
     if (nivel) lista = lista.filter((a) => a.nivelAcademico === nivel);
     if (grupo) lista = lista.filter((a) => a.grupo === grupo);
-    if (soloRiesgo) lista = lista.filter((a) => a.porcentajeAsistencia < UMBRAL_RIESGO);
+    if (soloRiesgo)
+      lista = lista.filter(
+        (a) => a.porcentajeAsistencia !== null && a.porcentajeAsistencia < UMBRAL_RIESGO
+      );
     if (termino.trim().length >= 2) {
       const t = termino.trim().toLowerCase();
       lista = lista.filter((a) => a.nombre.toLowerCase().includes(t));
@@ -115,6 +119,14 @@ export default function ReportesClient({
     return [...lista].sort((a, b) => {
       if (orden === "nombre") return dir * a.nombre.localeCompare(b.nombre, "es");
       if (orden === "grupo") return dir * a.grupo.localeCompare(b.grupo, "es");
+      // Los alumnos sin días evaluables van siempre al final, sin importar el
+      // sentido del orden: no tienen dato que comparar.
+      if (orden === "porcentajeAsistencia") {
+        const va = a.porcentajeAsistencia;
+        const vb = b.porcentajeAsistencia;
+        if (va === null || vb === null) return (va === null ? 1 : 0) - (vb === null ? 1 : 0);
+        return dir * (va - vb);
+      }
       return dir * ((a[orden] as number) - (b[orden] as number));
     });
   }, [reporte, nivel, grupo, soloRiesgo, termino, orden, asc]);
@@ -123,16 +135,21 @@ export default function ReportesClient({
   // solo Primaria, los números de arriba tienen que ser los de Primaria.
   const resumen = useMemo(() => {
     if (!filtrados.length) return null;
-    const dias = reporte?.diasLectivos ?? 0;
-    const posibles = filtrados.length * dias;
+    // El denominador global suma los días evaluables de cada alumno, no
+    // alumnos × días del rango: si un grupo entró tarde al sistema, sus días
+    // previos no existen para nadie.
+    const posibles = filtrados.reduce((s, a) => s + a.diasEvaluados, 0);
     const asistencias = filtrados.reduce((s, a) => s + a.asistencias, 0);
     return {
       alumnos: filtrados.length,
-      dias,
+      dias: reporte?.diasLectivos ?? 0,
       asistencia: posibles ? Math.round((asistencias / posibles) * 100) : 0,
       retardos: filtrados.reduce((s, a) => s + a.retardos, 0),
       faltas: filtrados.reduce((s, a) => s + a.ausenciasSinJustificar, 0),
-      enRiesgo: filtrados.filter((a) => a.porcentajeAsistencia < UMBRAL_RIESGO).length,
+      enRiesgo: filtrados.filter(
+        (a) => a.porcentajeAsistencia !== null && a.porcentajeAsistencia < UMBRAL_RIESGO
+      ).length,
+      sinDatos: filtrados.filter((a) => a.porcentajeAsistencia === null).length,
     };
   }, [filtrados, reporte]);
 
@@ -203,6 +220,18 @@ export default function ReportesClient({
 
       {error && (
         <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>
+      )}
+
+      {reporte && reporte.diasGrupoSinRegistro > 0 && (
+        <div className="flex items-start gap-3 rounded-2xl border border-estado-retardo/30 bg-estado-retardo/10 px-4 py-3">
+          <span className="material-symbols-outlined mt-0.5 text-[20px] text-estado-retardo">info</span>
+          <p className="text-sm font-medium text-gardner-gris/85">
+            Hay días del rango en que algunos grupos no registraron a nadie. Esos días{" "}
+            <strong>no cuentan como faltas</strong> para ese grupo — no se puede saber si el alumno
+            faltó o si no se usó el sistema ese día en su salón. Los porcentajes se calculan solo
+            sobre los días con actividad.
+          </p>
+        </div>
       )}
 
       {resumen && (
@@ -328,7 +357,8 @@ export default function ReportesClient({
 }
 
 function Fila({ alumno }: { alumno: AlumnoAcumulado }) {
-  const riesgo = alumno.porcentajeAsistencia < UMBRAL_RIESGO;
+  const riesgo =
+    alumno.porcentajeAsistencia !== null && alumno.porcentajeAsistencia < UMBRAL_RIESGO;
   return (
     <tr className={`border-b border-gardner-gris/5 last:border-0 ${riesgo ? "bg-red-50/40" : ""}`}>
       <td className="px-4 py-3">
@@ -355,12 +385,24 @@ function Fila({ alumno }: { alumno: AlumnoAcumulado }) {
         {alumno.retardos || <span className="text-gardner-gris/30">—</span>}
       </td>
       <td className="px-4 py-3 text-center">
-        <span className={`text-base font-bold ${colorAsistencia(alumno.porcentajeAsistencia)}`}>
-          {alumno.porcentajeAsistencia}%
-        </span>
-        <span className="block text-xs text-gardner-gris/55">
-          {alumno.asistencias}/{alumno.diasLectivos}
-        </span>
+        {alumno.porcentajeAsistencia === null ? (
+          <>
+            <span className="text-sm font-semibold text-gardner-gris/40">Sin datos</span>
+            <span className="block text-xs text-gardner-gris/40">
+              su grupo no registró ningún día
+            </span>
+          </>
+        ) : (
+          <>
+            <span className={`text-base font-bold ${colorAsistencia(alumno.porcentajeAsistencia)}`}>
+              {alumno.porcentajeAsistencia}%
+            </span>
+            <span className="block text-xs text-gardner-gris/55">
+              {alumno.asistencias}/{alumno.diasEvaluados}
+              {alumno.diasSinRegistro > 0 && ` · ${alumno.diasSinRegistro} sin datos`}
+            </span>
+          </>
+        )}
       </td>
     </tr>
   );

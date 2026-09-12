@@ -8,6 +8,13 @@
 // Ojo con el denominador: no son los días del rango, son los días lectivos.
 // Contar sábados y festivos como faltas convertiría a todos los alumnos en
 // casos de riesgo y el reporte no serviría para nada.
+//
+// Y hay un segundo filtro igual de importante: un día en que NINGÚN alumno del
+// grupo fue escaneado no cuenta para ese grupo. No se puede afirmar que un
+// alumno faltó un día en que el sistema no se usó en su salón. Sin esto, el
+// arranque escalonado del SAG (Prepa desde el inicio, Secundaria y Primaria
+// desde el 9 de septiembre) marcaba en riesgo a 263 de 353 alumnos, que es
+// falso y habría quemado la credibilidad del reporte en su primera lectura.
 
 import { supaGet, eqP, qs } from "./supabaseAdmin";
 import { filtroNivel, tieneAccesoTotal } from "./niveles";
@@ -52,8 +59,15 @@ export type AlumnoAcumulado = {
   grupo: string;
   nivelAcademico: string;
   grado: string;
-  /** Días lectivos del rango: el denominador de todos los porcentajes. */
+  /** Días lectivos del rango, antes de descartar los días sin registro. */
   diasLectivos: number;
+  /**
+   * Días realmente evaluables para este alumno: los lectivos en que su grupo
+   * sí tuvo actividad en el sistema. Es el denominador de porcentajeAsistencia.
+   */
+  diasEvaluados: number;
+  /** Días lectivos en que el grupo del alumno no registró a nadie. */
+  diasSinRegistro: number;
   asistencias: number;
   puntuales: number;
   retardos: number;
@@ -61,8 +75,8 @@ export type AlumnoAcumulado = {
   /** Ausencias cubiertas por un justificante vigente en esa fecha. */
   ausenciasJustificadas: number;
   ausenciasSinJustificar: number;
-  /** Porcentaje de días lectivos en que el alumno se presentó (0-100). */
-  porcentajeAsistencia: number;
+  /** Porcentaje sobre diasEvaluados (0-100). null si no hay días evaluables. */
+  porcentajeAsistencia: number | null;
 };
 
 export type ReporteAcumulado = {
@@ -71,6 +85,11 @@ export type ReporteAcumulado = {
   diasLectivos: number;
   /** Fechas lectivas incluidas, por si la UI quiere mostrarlas. */
   fechas: string[];
+  /**
+   * Pares grupo-día descartados por no tener ningún registro. Sirve para
+   * advertir en pantalla que el reporte no cubre el rango completo.
+   */
+  diasGrupoSinRegistro: number;
   alumnos: AlumnoAcumulado[];
 };
 
@@ -158,6 +177,19 @@ export async function obtenerReporteAcumulado(
     porFecha.set(r.fecha, r.estatus);
   }
 
+  // Días en que cada grupo tuvo al menos un escaneo. Todo lo demás para ese
+  // grupo se considera "sin datos", no "todos faltaron".
+  const grupoDePorAlumno = new Map(alumnosRows.map((a) => [a.id, a.grupo?.id ?? null]));
+  const diasActivosPorGrupo = new Map<string, Set<string>>();
+  for (const r of registrosRows) {
+    if (!fechasLectivasSet.has(r.fecha)) continue;
+    const grupoId = grupoDePorAlumno.get(r.alumno_id);
+    if (!grupoId) continue;
+    const dias = diasActivosPorGrupo.get(grupoId);
+    if (dias) dias.add(r.fecha);
+    else diasActivosPorGrupo.set(grupoId, new Set([r.fecha]));
+  }
+
   const justificadosPorAlumno = new Map<string, JustificanteRow[]>();
   for (const j of justificantesRows) {
     const lista = justificadosPorAlumno.get(j.alumno_id);
@@ -168,13 +200,20 @@ export async function obtenerReporteAcumulado(
   const alumnos: AlumnoAcumulado[] = alumnosRows.map((a) => {
     const porFecha = registrosPorAlumno.get(a.id);
     const justificantes = justificadosPorAlumno.get(a.id) ?? [];
+    const diasActivos = a.grupo ? diasActivosPorGrupo.get(a.grupo.id) : undefined;
 
     let puntuales = 0;
     let retardos = 0;
     let ausencias = 0;
     let ausenciasJustificadas = 0;
+    let diasEvaluados = 0;
 
     for (const fecha of fechasLectivas) {
+      // Si ese día nadie de su grupo pasó credencial, el día no dice nada de
+      // este alumno: se salta en vez de contarle una falta.
+      if (!diasActivos?.has(fecha)) continue;
+      diasEvaluados++;
+
       const estatus = porFecha?.get(fecha);
       if (estatus === "Retardo") {
         retardos++;
@@ -198,23 +237,40 @@ export async function obtenerReporteAcumulado(
       nivelAcademico: a.grupo?.nivel_academico ?? "Sin nivel",
       grado: a.grupo?.grado ?? "",
       diasLectivos: fechasLectivas.length,
+      diasEvaluados,
+      diasSinRegistro: fechasLectivas.length - diasEvaluados,
       asistencias,
       puntuales,
       retardos,
       ausencias,
       ausenciasJustificadas,
       ausenciasSinJustificar: ausencias - ausenciasJustificadas,
-      porcentajeAsistencia: fechasLectivas.length
-        ? Math.round((asistencias / fechasLectivas.length) * 100)
-        : 0,
+      porcentajeAsistencia: diasEvaluados ? Math.round((asistencias / diasEvaluados) * 100) : null,
     };
   });
 
   // De peor a mejor asistencia: el reporte existe para encontrar a los que
   // están faltando, así que lo importante va arriba sin que nadie ordene nada.
+  // Los alumnos sin días evaluables van al final: no hay nada que reportar.
   alumnos.sort(
-    (a, b) => a.porcentajeAsistencia - b.porcentajeAsistencia || a.nombre.localeCompare(b.nombre, "es")
+    (a, b) =>
+      (a.porcentajeAsistencia ?? 999) - (b.porcentajeAsistencia ?? 999) ||
+      a.nombre.localeCompare(b.nombre, "es")
   );
 
-  return { desde, hasta, diasLectivos: fechasLectivas.length, fechas: fechasLectivas, alumnos };
+  // Cuántos pares grupo-día quedaron fuera, para poder advertirlo en pantalla.
+  const gruposDistintos = new Set(alumnosRows.map((a) => a.grupo?.id).filter(Boolean) as string[]);
+  let diasGrupoSinRegistro = 0;
+  for (const grupoId of gruposDistintos) {
+    diasGrupoSinRegistro += fechasLectivas.length - (diasActivosPorGrupo.get(grupoId)?.size ?? 0);
+  }
+
+  return {
+    desde,
+    hasta,
+    diasLectivos: fechasLectivas.length,
+    fechas: fechasLectivas,
+    diasGrupoSinRegistro,
+    alumnos,
+  };
 }
