@@ -13,6 +13,7 @@ const ITEMS: Item[] = [
   { id: "grupos-alumnos", label: "Grupos y Alumnos", href: "/grupos-alumnos", icono: "groups" },
   { id: "docentes", label: "Docentes", href: "/docentes", icono: "badge" },
   { id: "justificantes", label: "Justificantes", href: "/justificantes", icono: "assignment_turned_in" },
+  { id: "reportes", label: "Reportes", href: "/reportes", icono: "monitoring" },
   { id: "ajustes", label: "Ajustes", href: "/ajustes", icono: "settings" },
 ];
 
