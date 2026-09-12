@@ -77,7 +77,46 @@ export type AlumnoAcumulado = {
   ausenciasSinJustificar: number;
   /** Porcentaje sobre diasEvaluados (0-100). null si no hay días evaluables. */
   porcentajeAsistencia: number | null;
+  /**
+   * Cobertura del grupo al que pertenece. Se arrastra a cada alumno para que
+   * la tabla pueda advertir, fila por fila, cuándo su porcentaje no es de fiar.
+   */
+  coberturaGrupo: number;
 };
+
+/**
+ * Qué tanto se está usando el SAG en un grupo: escaneos reales sobre escaneos
+ * posibles (alumnos × días lectivos del rango).
+ *
+ * Es la pieza que hace creíble el resto del reporte. Mientras la cobertura sea
+ * baja, un alumno "ausente" puede estar ausente o simplemente no haber pasado
+ * su credencial, y no hay forma de distinguirlo desde los datos. Separar las
+ * dos cosas evita que Dirección lea como ausentismo lo que en realidad es
+ * falta de hábito en un salón -- y de paso señala exactamente en qué grupos
+ * hay que insistir.
+ */
+export type GrupoCobertura = {
+  id: string;
+  nombre: string;
+  nivelAcademico: string;
+  alumnos: number;
+  /** Días lectivos en que el grupo registró al menos un escaneo. */
+  diasActivos: number;
+  escaneos: number;
+  escaneosPosibles: number;
+  cobertura: number;
+  confianza: "Alta" | "Parcial" | "Baja";
+};
+
+/** Umbrales de confianza en la cobertura de un grupo. */
+export const COBERTURA_CONFIABLE = 60;
+export const COBERTURA_PARCIAL = 30;
+
+export function nivelDeConfianza(cobertura: number): GrupoCobertura["confianza"] {
+  if (cobertura >= COBERTURA_CONFIABLE) return "Alta";
+  if (cobertura >= COBERTURA_PARCIAL) return "Parcial";
+  return "Baja";
+}
 
 export type ReporteAcumulado = {
   desde: string;
@@ -91,6 +130,7 @@ export type ReporteAcumulado = {
    */
   diasGrupoSinRegistro: number;
   alumnos: AlumnoAcumulado[];
+  grupos: GrupoCobertura[];
 };
 
 /** Enumera las fechas de un rango, ambas inclusive. */
@@ -197,6 +237,46 @@ export async function obtenerReporteAcumulado(
     else justificadosPorAlumno.set(j.alumno_id, [j]);
   }
 
+  // --- Cobertura por grupo ---
+  // Denominador: alumnos × días lectivos del rango COMPLETO (no solo los días
+  // activos). Un día en que el grupo no registró a nadie es cobertura cero,
+  // no un día que no existió: para medir adopción sí cuenta.
+  const escaneosPorGrupo = new Map<string, number>();
+  for (const r of registrosRows) {
+    if (!fechasLectivasSet.has(r.fecha)) continue;
+    const grupoId = grupoDePorAlumno.get(r.alumno_id);
+    if (!grupoId) continue;
+    escaneosPorGrupo.set(grupoId, (escaneosPorGrupo.get(grupoId) ?? 0) + 1);
+  }
+
+  const datosGrupo = new Map<string, GrupoRow>();
+  const alumnosPorGrupo = new Map<string, number>();
+  for (const a of alumnosRows) {
+    if (!a.grupo) continue;
+    datosGrupo.set(a.grupo.id, a.grupo);
+    alumnosPorGrupo.set(a.grupo.id, (alumnosPorGrupo.get(a.grupo.id) ?? 0) + 1);
+  }
+
+  const grupos: GrupoCobertura[] = [...datosGrupo.values()].map((gr) => {
+    const alumnos = alumnosPorGrupo.get(gr.id) ?? 0;
+    const escaneos = escaneosPorGrupo.get(gr.id) ?? 0;
+    const escaneosPosibles = alumnos * fechasLectivas.length;
+    const cobertura = escaneosPosibles ? Math.round((escaneos / escaneosPosibles) * 100) : 0;
+    return {
+      id: gr.id,
+      nombre: gr.nombre,
+      nivelAcademico: gr.nivel_academico,
+      alumnos,
+      diasActivos: diasActivosPorGrupo.get(gr.id)?.size ?? 0,
+      escaneos,
+      escaneosPosibles,
+      cobertura,
+      confianza: nivelDeConfianza(cobertura),
+    };
+  });
+  grupos.sort((a, b) => a.cobertura - b.cobertura || a.nombre.localeCompare(b.nombre, "es"));
+  const coberturaPorGrupo = new Map(grupos.map((gr) => [gr.id, gr.cobertura]));
+
   const alumnos: AlumnoAcumulado[] = alumnosRows.map((a) => {
     const porFecha = registrosPorAlumno.get(a.id);
     const justificantes = justificadosPorAlumno.get(a.id) ?? [];
@@ -246,6 +326,7 @@ export async function obtenerReporteAcumulado(
       ausenciasJustificadas,
       ausenciasSinJustificar: ausencias - ausenciasJustificadas,
       porcentajeAsistencia: diasEvaluados ? Math.round((asistencias / diasEvaluados) * 100) : null,
+      coberturaGrupo: a.grupo ? coberturaPorGrupo.get(a.grupo.id) ?? 0 : 0,
     };
   });
 
@@ -272,5 +353,6 @@ export async function obtenerReporteAcumulado(
     fechas: fechasLectivas,
     diasGrupoSinRegistro,
     alumnos,
+    grupos,
   };
 }

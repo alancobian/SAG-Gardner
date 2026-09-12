@@ -9,11 +9,18 @@
 // que atender queda arriba sin que nadie toque un filtro.
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import type { AlumnoAcumulado, ReporteAcumulado } from "@/lib/acumulados";
+import type { AlumnoAcumulado, GrupoCobertura, ReporteAcumulado } from "@/lib/acumulados";
+import { COBERTURA_CONFIABLE } from "@/lib/acumulados";
 import { obtenerReporteAcumuladoAction } from "./actions";
 
 /** A partir de aquí un alumno se considera en riesgo. */
 const UMBRAL_RIESGO = 85;
+
+const ESTILO_CONFIANZA: Record<GrupoCobertura["confianza"], string> = {
+  Alta: "bg-estado-puntual/15 text-estado-puntual",
+  Parcial: "bg-estado-retardo/15 text-estado-retardo",
+  Baja: "bg-red-100 text-red-700",
+};
 
 type Columna = "nombre" | "grupo" | "ausenciasSinJustificar" | "retardos" | "porcentajeAsistencia";
 
@@ -62,6 +69,7 @@ export default function ReportesClient({
   const [cargando, setCargando] = useState(true);
   const [, startTransition] = useTransition();
 
+  const [vista, setVista] = useState<"alumnos" | "cobertura">("alumnos");
   const [nivel, setNivel] = useState("");
   const [grupo, setGrupo] = useState("");
   const [termino, setTermino] = useState("");
@@ -153,6 +161,20 @@ export default function ReportesClient({
     };
   }, [filtrados, reporte]);
 
+  const gruposCobertura = useMemo(() => {
+    let lista = reporte?.grupos ?? [];
+    if (nivel) lista = lista.filter((gr) => gr.nivelAcademico === nivel);
+    if (grupo) lista = lista.filter((gr) => gr.nombre === grupo);
+    return lista;
+  }, [reporte, nivel, grupo]);
+
+  // Cuántos alumnos del filtro actual están en un grupo cuya cobertura todavía
+  // no permite confiar en su porcentaje individual.
+  const alumnosPocoConfiables = useMemo(
+    () => filtrados.filter((a) => a.coberturaGrupo < COBERTURA_CONFIABLE).length,
+    [filtrados]
+  );
+
   function ordenarPor(col: Columna) {
     if (orden === col) setAsc(!asc);
     else {
@@ -222,19 +244,81 @@ export default function ReportesClient({
         <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>
       )}
 
-      {reporte && reporte.diasGrupoSinRegistro > 0 && (
+      <div className="flex gap-1 self-start rounded-2xl bg-white p-1.5 shadow-sm">
+        {(
+          [
+            { clave: "alumnos", etiqueta: "Por alumno", icono: "person" },
+            { clave: "cobertura", etiqueta: "Cobertura por grupo", icono: "monitoring" },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.clave}
+            onClick={() => setVista(t.clave)}
+            className={`flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-medium transition ${
+              vista === t.clave
+                ? "bg-gardner-azul text-white shadow-sm"
+                : "text-gardner-gris/80 hover:bg-gardner-azul/10 hover:text-gardner-azul-oscuro"
+            }`}
+          >
+            <span className="material-symbols-outlined text-[18px]">{t.icono}</span>
+            {t.etiqueta}
+          </button>
+        ))}
+      </div>
+
+      {vista === "alumnos" && alumnosPocoConfiables > 0 && (
         <div className="flex items-start gap-3 rounded-2xl border border-estado-retardo/30 bg-estado-retardo/10 px-4 py-3">
           <span className="material-symbols-outlined mt-0.5 text-[20px] text-estado-retardo">info</span>
           <p className="text-sm font-medium text-gardner-gris/85">
-            Hay días del rango en que algunos grupos no registraron a nadie. Esos días{" "}
-            <strong>no cuentan como faltas</strong> para ese grupo — no se puede saber si el alumno
-            faltó o si no se usó el sistema ese día en su salón. Los porcentajes se calculan solo
-            sobre los días con actividad.
+            <strong>{alumnosPocoConfiables} de {filtrados.length} alumnos</strong> están en grupos que
+            todavía escanean por debajo del {COBERTURA_CONFIABLE}%. En esos casos un alumno marcado
+            como ausente pudo haber asistido sin pasar su credencial: el porcentaje mide el hábito
+            del salón, no la asistencia del alumno.{" "}
+            <button
+              onClick={() => setVista("cobertura")}
+              className="font-semibold text-gardner-azul-oscuro underline underline-offset-2"
+            >
+              Ver cobertura por grupo
+            </button>
           </p>
         </div>
       )}
 
-      {resumen && (
+      {vista === "cobertura" && reporte && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            {
+              etiqueta: "Grupos confiables",
+              valor: `${gruposCobertura.filter((gr) => gr.confianza === "Alta").length}/${gruposCobertura.length}`,
+              icono: "verified",
+              color: "text-estado-puntual",
+            },
+            {
+              etiqueta: "Cobertura parcial",
+              valor: gruposCobertura.filter((gr) => gr.confianza === "Parcial").length,
+              icono: "pending",
+              color: "text-estado-retardo",
+            },
+            {
+              etiqueta: "Cobertura baja",
+              valor: gruposCobertura.filter((gr) => gr.confianza === "Baja").length,
+              icono: "error",
+              color: "text-red-600",
+            },
+            { etiqueta: "Días lectivos", valor: reporte.diasLectivos, icono: "event_available", color: "text-gardner-azul" },
+          ].map((c) => (
+            <div key={c.etiqueta} className="rounded-2xl bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className={`material-symbols-outlined text-[18px] ${c.color}`}>{c.icono}</span>
+                <span className="text-xs font-semibold text-gardner-gris/70">{c.etiqueta}</span>
+              </div>
+              <p className={`mt-1 text-2xl font-bold ${c.color}`}>{c.valor}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {vista === "alumnos" && resumen && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {[
             { etiqueta: "Días lectivos", valor: resumen.dias, icono: "event_available", color: "text-gardner-azul" },
@@ -255,17 +339,20 @@ export default function ReportesClient({
       )}
 
       <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-white p-3 shadow-sm">
-        <div className="relative min-w-[200px] flex-1">
-          <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-gardner-gris/50">
-            search
-          </span>
-          <input
-            value={termino}
-            onChange={(e) => setTermino(e.target.value)}
-            placeholder="Buscar alumno…"
-            className="w-full rounded-xl border border-gardner-gris/20 py-2 pl-10 pr-3 text-sm font-medium text-gardner-gris"
-          />
-        </div>
+        {vista === "alumnos" && (
+          <div className="relative min-w-[200px] flex-1">
+            <span className="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-gardner-gris/50">
+              search
+            </span>
+            <input
+              value={termino}
+              onChange={(e) => setTermino(e.target.value)}
+              placeholder="Buscar alumno…"
+              className="w-full rounded-xl border border-gardner-gris/20 py-2 pl-10 pr-3 text-sm font-medium text-gardner-gris"
+            />
+          </div>
+        )}
+        {vista === "cobertura" && <div className="flex-1" />}
 
         <select
           value={nivel}
@@ -296,17 +383,19 @@ export default function ReportesClient({
           ))}
         </select>
 
-        <button
-          onClick={() => setSoloRiesgo(!soloRiesgo)}
-          className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold transition ${
-            soloRiesgo
-              ? "bg-red-600 text-white"
-              : "bg-gardner-gris/10 text-gardner-gris/80 hover:bg-gardner-azul/10"
-          }`}
-        >
-          <span className="material-symbols-outlined text-[18px]">warning</span>
-          Solo en riesgo
-        </button>
+        {vista === "alumnos" && (
+          <button
+            onClick={() => setSoloRiesgo(!soloRiesgo)}
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold transition ${
+              soloRiesgo
+                ? "bg-red-600 text-white"
+                : "bg-gardner-gris/10 text-gardner-gris/80 hover:bg-gardner-azul/10"
+            }`}
+          >
+            <span className="material-symbols-outlined text-[18px]">warning</span>
+            Solo en riesgo
+          </button>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
@@ -318,6 +407,25 @@ export default function ReportesClient({
           <p className="px-4 py-10 text-center text-sm font-medium text-gardner-gris/60">
             No hay días lectivos en el rango seleccionado.
           </p>
+        ) : vista === "cobertura" ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-gardner-gris/10 bg-gardner-neutro text-xs">
+                <tr className="text-left font-semibold text-gardner-gris/70">
+                  <th className="px-4 py-3">Grupo</th>
+                  <th className="px-4 py-3 text-center">Alumnos</th>
+                  <th className="px-4 py-3 text-center">Días con actividad</th>
+                  <th className="px-4 py-3 text-center">Cobertura</th>
+                  <th className="px-4 py-3 text-center">Confianza</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gruposCobertura.map((gr) => (
+                  <FilaGrupo key={gr.id} grupo={gr} diasLectivos={reporte.diasLectivos} />
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : filtrados.length === 0 ? (
           <p className="px-4 py-10 text-center text-sm font-medium text-gardner-gris/60">
             Ningún alumno coincide con los filtros.
@@ -348,11 +456,68 @@ export default function ReportesClient({
         <p className="text-xs font-medium text-gardner-gris/60">
           {reporte.diasLectivos} días lectivos entre el {formatoFecha(reporte.desde)} y el{" "}
           {formatoFecha(reporte.hasta)}. Se excluyen fines de semana y los días marcados como no
-          lectivos en el calendario escolar. Un alumno se considera en riesgo por debajo de{" "}
-          {UMBRAL_RIESGO}% de asistencia.
+          lectivos en el calendario escolar.{" "}
+          {vista === "alumnos" ? (
+            <>Un alumno se considera en riesgo por debajo de {UMBRAL_RIESGO}% de asistencia.</>
+          ) : (
+            <>
+              La cobertura son los escaneos reales del grupo sobre los posibles (alumnos × días
+              lectivos). Mide qué tanto se está usando el SAG en ese salón, no la asistencia: hasta
+              que suba, los porcentajes por alumno de ese grupo no son concluyentes.
+            </>
+          )}
         </p>
       )}
     </div>
+  );
+}
+
+function FilaGrupo({ grupo, diasLectivos }: { grupo: GrupoCobertura; diasLectivos: number }) {
+  return (
+    <tr
+      className={`border-b border-gardner-gris/5 last:border-0 ${
+        grupo.confianza === "Baja" ? "bg-red-50/40" : ""
+      }`}
+    >
+      <td className="px-4 py-3">
+        <span className="font-semibold text-gardner-gris">{grupo.nombre}</span>
+        <span className="block text-xs text-gardner-gris/55">{grupo.nivelAcademico}</span>
+      </td>
+      <td className="px-4 py-3 text-center font-medium text-gardner-gris/80">{grupo.alumnos}</td>
+      <td className="px-4 py-3 text-center">
+        <span className="font-medium text-gardner-gris/80">
+          {grupo.diasActivos}/{diasLectivos}
+        </span>
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center justify-center gap-2">
+          {/* La barra hace visible de un vistazo qué salones están lejos. */}
+          <div className="h-2 w-24 overflow-hidden rounded-full bg-gardner-gris/10">
+            <div
+              className={`h-full rounded-full ${
+                grupo.confianza === "Alta"
+                  ? "bg-estado-puntual"
+                  : grupo.confianza === "Parcial"
+                    ? "bg-estado-retardo"
+                    : "bg-red-500"
+              }`}
+              style={{ width: `${grupo.cobertura}%` }}
+            />
+          </div>
+          <span className="w-10 text-right font-bold text-gardner-gris">{grupo.cobertura}%</span>
+        </div>
+        <span className="mt-0.5 block text-center text-xs text-gardner-gris/55">
+          {grupo.escaneos} de {grupo.escaneosPosibles} escaneos
+        </span>
+      </td>
+      <td className="px-4 py-3 text-center">
+        <span
+          className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${ESTILO_CONFIANZA[grupo.confianza]}`}
+        >
+          {grupo.confianza}
+        </span>
+      </td>
+    </tr>
   );
 }
 
