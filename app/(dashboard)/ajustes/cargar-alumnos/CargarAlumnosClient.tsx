@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { parseCSV, filasComoObjetos, generarPlantillaCSV } from "@/lib/csv";
+import AltaAlumnoIndividual from "./AltaAlumnoIndividual";
 import type { FilaImportacionAlumno, ResultadoImportacion } from "@/lib/importar";
 import { importarAlumnosAction } from "./actions";
 
@@ -20,6 +21,11 @@ const ALIASES: Record<string, keyof FilaImportacionAlumno> = {
   tutorcorreo: "tutorCorreo",
   correotutor: "tutorCorreo",
 };
+
+const MODOS = [
+  { clave: "individual" as const, etiqueta: "Un alumno", icono: "person_add" },
+  { clave: "masiva" as const, etiqueta: "Carga masiva (CSV)", icono: "upload_file" },
+];
 
 function descargarPlantilla() {
   const csv = generarPlantillaCSV(
@@ -40,6 +46,7 @@ export default function CargarAlumnosClient() {
   const [filas, setFilas] = useState<FilaImportacionAlumno[]>([]);
   const [nombreArchivo, setNombreArchivo] = useState<string | null>(null);
   const [resultados, setResultados] = useState<ResultadoImportacion[] | null>(null);
+  const [modo, setModo] = useState<(typeof MODOS)[number]["clave"]>("individual");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -96,10 +103,33 @@ export default function CargarAlumnosClient() {
       <div>
         <h1 className="text-2xl font-bold text-gardner-gris">Cargar alumnos</h1>
         <p className="text-sm text-gardner-gris/75">
-          Da de alta varios alumnos a la vez desde un archivo CSV. Los grupos y tutores nuevos se crean automáticamente.
+          Registra a un alumno nuevo, o da de alta a varios a la vez desde un archivo CSV.
         </p>
       </div>
 
+      {/* Dos caminos: el de todos los días (un alumno que se inscribe a media
+          de año) y el de inicio de ciclo (la lista completa en CSV). */}
+      <div className="flex gap-1 self-start rounded-xl bg-white p-1.5 shadow-sm">
+        {MODOS.map((m) => (
+          <button
+            key={m.clave}
+            onClick={() => setModo(m.clave)}
+            className={`flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-medium transition ${
+              modo === m.clave
+                ? "bg-gardner-azul text-white shadow-sm"
+                : "text-gardner-gris/80 hover:bg-gardner-azul/10 hover:text-gardner-azul-oscuro"
+            }`}
+          >
+            <span className="material-symbols-outlined text-[18px]">{m.icono}</span>
+            {m.etiqueta}
+          </button>
+        ))}
+      </div>
+
+      {modo === "individual" && <AltaAlumnoIndividual />}
+
+      {modo === "masiva" && (
+      <>
       <div className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-4 shadow-sm">
         <button
           onClick={descargarPlantilla}
@@ -200,6 +230,8 @@ export default function CargarAlumnosClient() {
             Cargar otro archivo
           </button>
         </div>
+      )}
+    </>
       )}
     </div>
   );

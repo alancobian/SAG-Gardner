@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { parseCSV, filasComoObjetos, generarPlantillaCSV } from "@/lib/csv";
 import type { FilaImportacionDocente, ResultadoImportacion } from "@/lib/importar";
 import { importarDocentesAction } from "./actions";
+import AltaDocenteIndividual from "./AltaDocenteIndividual";
 
 const ALIASES: Record<string, keyof FilaImportacionDocente> = {
   nombre: "nombre",
@@ -14,6 +15,11 @@ const ALIASES: Record<string, keyof FilaImportacionDocente> = {
   correo: "correo",
   email: "correo",
 };
+
+const MODOS = [
+  { clave: "individual" as const, etiqueta: "Un docente", icono: "badge" },
+  { clave: "masiva" as const, etiqueta: "Carga masiva (CSV)", icono: "upload_file" },
+];
 
 function descargarPlantilla() {
   const csv = generarPlantillaCSV(
@@ -34,6 +40,7 @@ export default function CargarDocentesClient() {
   const [filas, setFilas] = useState<FilaImportacionDocente[]>([]);
   const [nombreArchivo, setNombreArchivo] = useState<string | null>(null);
   const [resultados, setResultados] = useState<ResultadoImportacion[] | null>(null);
+  const [modo, setModo] = useState<(typeof MODOS)[number]["clave"]>("individual");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -89,9 +96,32 @@ export default function CargarDocentesClient() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold text-gardner-gris">Cargar docentes</h1>
-        <p className="text-sm text-gardner-gris/75">Da de alta varios docentes a la vez desde un archivo CSV.</p>
+        <p className="text-sm text-gardner-gris/75">
+          Registra a un docente nuevo, o da de alta a varios a la vez desde un archivo CSV.
+        </p>
       </div>
 
+      <div className="flex gap-1 self-start rounded-xl bg-white p-1.5 shadow-sm">
+        {MODOS.map((m) => (
+          <button
+            key={m.clave}
+            onClick={() => setModo(m.clave)}
+            className={`flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-medium transition ${
+              modo === m.clave
+                ? "bg-gardner-azul text-white shadow-sm"
+                : "text-gardner-gris/80 hover:bg-gardner-azul/10 hover:text-gardner-azul-oscuro"
+            }`}
+          >
+            <span className="material-symbols-outlined text-[18px]">{m.icono}</span>
+            {m.etiqueta}
+          </button>
+        ))}
+      </div>
+
+      {modo === "individual" && <AltaDocenteIndividual />}
+
+      {modo === "masiva" && (
+      <>
       <div className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-4 shadow-sm">
         <button
           onClick={descargarPlantilla}
@@ -192,6 +222,8 @@ export default function CargarDocentesClient() {
             Cargar otro archivo
           </button>
         </div>
+      )}
+    </>
       )}
     </div>
   );
