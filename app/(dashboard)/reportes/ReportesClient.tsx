@@ -99,22 +99,21 @@ export default function ReportesClient({
     () => [...new Set((reporte?.alumnos ?? []).map((a) => a.nivelAcademico))].sort(),
     [reporte]
   );
+  // Se filtra por id, no por nombre: "3° grado A" existe en Primaria y en
+  // Secundaria, y filtrar por texto mezclaba los dos grupos.
   const grupos = useMemo(
     () =>
-      [
-        ...new Set(
-          (reporte?.alumnos ?? [])
-            .filter((a) => !nivel || a.nivelAcademico === nivel)
-            .map((a) => a.grupo)
-        ),
-      ].sort((a, b) => a.localeCompare(b, "es")),
+      (reporte?.grupos ?? [])
+        .filter((gr) => !nivel || gr.nivelAcademico === nivel)
+        .map((gr) => ({ id: gr.id, nombre: gr.nombre, nivel: gr.nivelAcademico }))
+        .sort((a, b) => a.nombre.localeCompare(b.nombre, "es")),
     [reporte, nivel]
   );
 
   const filtrados = useMemo(() => {
     let lista = reporte?.alumnos ?? [];
     if (nivel) lista = lista.filter((a) => a.nivelAcademico === nivel);
-    if (grupo) lista = lista.filter((a) => a.grupo === grupo);
+    if (grupo) lista = lista.filter((a) => a.grupoId === grupo);
     if (soloRiesgo)
       lista = lista.filter(
         (a) => a.porcentajeAsistencia !== null && a.porcentajeAsistencia < UMBRAL_RIESGO
@@ -164,7 +163,7 @@ export default function ReportesClient({
   const gruposCobertura = useMemo(() => {
     let lista = reporte?.grupos ?? [];
     if (nivel) lista = lista.filter((gr) => gr.nivelAcademico === nivel);
-    if (grupo) lista = lista.filter((gr) => gr.nombre === grupo);
+    if (grupo) lista = lista.filter((gr) => gr.id === grupo);
     return lista;
   }, [reporte, nivel, grupo]);
 
@@ -377,8 +376,10 @@ export default function ReportesClient({
         >
           <option value="">Todos los grupos</option>
           {grupos.map((g) => (
-            <option key={g} value={g}>
-              {g}
+            <option key={g.id} value={g.id}>
+              {/* El nivel va en la etiqueta porque hay nombres repetidos entre
+                  Primaria y Secundaria (p. ej. "3° grado A"). */}
+              {nivel ? g.nombre : `${g.nombre} · ${g.nivel}`}
             </option>
           ))}
         </select>
