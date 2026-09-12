@@ -25,7 +25,11 @@ export async function GET(request: Request) {
 
   try {
     const resultado = await cerrarSalidasPendientes();
-    console.log(`Cierre automático de salidas (${resultado.fecha}): ${resultado.cerrados} registros cerrados.`);
+    console.log(
+      resultado.omitido
+        ? `Cierre automático de salidas (${resultado.fecha}): omitido, no es día lectivo (${resultado.omitido}).`
+        : `Cierre automático de salidas (${resultado.fecha}): ${resultado.cerrados} registros cerrados.`
+    );
     return Response.json({ ok: true, ...resultado });
   } catch (e) {
     const mensaje = e instanceof Error ? e.message : String(e);
