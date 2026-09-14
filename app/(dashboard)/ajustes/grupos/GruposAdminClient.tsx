@@ -1,10 +1,14 @@
 "use client";
 
 // Ajustes → Grupos. Dos cosas que antes solo se podían hacer con SQL a mano:
-// asignar el tutor de cada grupo y borrar grupos que quedaron vacíos.
+// asignar los titulares de cada grupo y borrar grupos que quedaron vacíos.
+//
+// Primaria es bilingüe y lleva dos titulares por grupo (Español e Inglés);
+// Secundaria y Preparatoria, uno. Ver migración 4.
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import type { GrupoAdmin } from "@/lib/grupos";
+import type { GrupoAdmin, RolTitular } from "@/lib/grupos";
+import { admiteTitularIngles, etiquetaTitular } from "@/lib/grupos";
 import type { Docente } from "@/lib/docentes";
 import {
   listarGruposAdminAction,
@@ -22,21 +26,24 @@ export default function GruposAdminClient() {
   const [confirmando, setConfirmando] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // El tutor no se cambia al vuelo: hay que entrar en modo edición en esa fila
-  // y guardar. Así nadie reasigna un grupo por rozar el desplegable.
+  // Los titulares no se cambian al vuelo: hay que entrar en modo edición en esa
+  // fila y guardar. Así nadie reasigna un grupo por rozar el desplegable.
   const [editando, setEditando] = useState<string | null>(null);
-  const [tutorBorrador, setTutorBorrador] = useState("");
+  const [titularBorrador, setTitularBorrador] = useState("");
+  const [inglesBorrador, setInglesBorrador] = useState("");
 
   function empezarEdicion(g: GrupoAdmin) {
     setEditando(g.id);
-    setTutorBorrador(g.docenteTitularId ?? "");
+    setTitularBorrador(g.docenteTitularId ?? "");
+    setInglesBorrador(g.docenteTitularInglesId ?? "");
     setError(null);
     setAviso(null);
   }
 
   function cancelarEdicion() {
     setEditando(null);
-    setTutorBorrador("");
+    setTitularBorrador("");
+    setInglesBorrador("");
   }
 
   const recargar = useCallback(async () => {
@@ -54,19 +61,41 @@ export default function GruposAdminClient() {
     recargar();
   }, [recargar]);
 
-  function onGuardarTutor(g: GrupoAdmin) {
+  function onGuardarTitulares(g: GrupoAdmin) {
     setError(null);
     setAviso(null);
+
+    const dosIdiomas = admiteTitularIngles(g.nivelAcademico);
+    if (dosIdiomas && titularBorrador && titularBorrador === inglesBorrador) {
+      setError("El titular de Español y el de Inglés tienen que ser personas distintas.");
+      return;
+    }
+
+    // Solo se envía lo que de verdad cambió: así un grupo de Secundaria nunca
+    // toca la columna de inglés, y no se escribe de más sin necesidad.
+    const cambios: { rol: RolTitular; docenteId: string | null }[] = [];
+    if ((titularBorrador || null) !== g.docenteTitularId) {
+      cambios.push({ rol: "titular", docenteId: titularBorrador || null });
+    }
+    if (dosIdiomas && (inglesBorrador || null) !== g.docenteTitularInglesId) {
+      cambios.push({ rol: "ingles", docenteId: inglesBorrador || null });
+    }
+
+    if (cambios.length === 0) {
+      cancelarEdicion();
+      return;
+    }
+
     startTransition(async () => {
-      const res = await asignarDocenteTitularAction(g.id, tutorBorrador || null);
-      if (!res.ok) {
-        setError(res.error);
-        return;
+      for (const c of cambios) {
+        const res = await asignarDocenteTitularAction(g.id, c.docenteId, c.rol);
+        if (!res.ok) {
+          setError(res.error);
+          await recargar();
+          return;
+        }
       }
-      const nombre = docentes.find((d) => d.id === tutorBorrador)?.nombre;
-      setAviso(
-        nombre ? `${nombre} quedó como tutor de ${g.nombre}.` : `${g.nombre} quedó sin tutor asignado.`
-      );
+      setAviso(`Se actualizaron los titulares de ${g.nombre}.`);
       cancelarEdicion();
       await recargar();
     });
@@ -110,8 +139,17 @@ export default function GruposAdminClient() {
         <span className="rounded-full bg-gardner-azul/10 px-3 py-1 text-gardner-azul-oscuro">
           {grupos.length} grupos
         </span>
+        {/* "Completo" significa cosas distintas según el nivel: en Primaria
+            hacen falta los dos titulares, en el resto basta uno. */}
         <span className="rounded-full bg-gardner-gris/10 px-3 py-1">
-          {grupos.filter((g) => g.docenteTitular).length} con tutor asignado
+          {
+            grupos.filter((g) =>
+              admiteTitularIngles(g.nivelAcademico)
+                ? g.docenteTitular && g.docenteTitularIngles
+                : g.docenteTitular
+            ).length
+          }{" "}
+          de {grupos.length} con titulares completos
         </span>
         {vacios > 0 && (
           <span className="rounded-full bg-estado-retardo/15 px-3 py-1 text-estado-retardo">
@@ -127,7 +165,7 @@ export default function GruposAdminClient() {
               <th className="px-4 py-3">Grupo</th>
               <th className="px-4 py-3">Nivel</th>
               <th className="px-4 py-3">Alumnos</th>
-              <th className="px-4 py-3">Tutor del grupo</th>
+              <th className="px-4 py-3">Titulares del grupo</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -149,49 +187,56 @@ export default function GruposAdminClient() {
                 </td>
                 <td className="px-4 py-3">
                   {editando === g.id ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <select
+                    <div className="flex flex-col gap-2">
+                      <SelectorTitular
+                        etiqueta={etiquetaTitular(g.nivelAcademico)}
+                        valor={titularBorrador}
+                        onChange={setTitularBorrador}
+                        docentes={docentes}
+                        deshabilitado={isPending}
                         autoFocus
-                        value={tutorBorrador}
-                        onChange={(e) => setTutorBorrador(e.target.value)}
-                        disabled={isPending}
-                        className="w-full max-w-[220px] rounded-lg border border-gardner-azul bg-white px-2.5 py-1.5 text-xs text-gardner-gris outline-none ring-2 ring-gardner-azul/20 disabled:opacity-60"
-                      >
-                        <option value="">Sin asignar</option>
-                        {docentes.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.nombre}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => onGuardarTutor(g)}
-                        disabled={isPending}
-                        className="rounded-lg bg-gardner-azul px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-gardner-azul-oscuro disabled:opacity-60"
-                      >
-                        {isPending ? "Guardando…" : "Guardar"}
-                      </button>
-                      <button
-                        onClick={cancelarEdicion}
-                        disabled={isPending}
-                        className="rounded-lg px-2 py-1.5 text-xs font-medium text-gardner-gris/70 transition hover:bg-gardner-gris/10"
-                      >
-                        Cancelar
-                      </button>
+                      />
+                      {admiteTitularIngles(g.nivelAcademico) && (
+                        <SelectorTitular
+                          etiqueta="Titular de Inglés"
+                          valor={inglesBorrador}
+                          onChange={setInglesBorrador}
+                          docentes={docentes}
+                          deshabilitado={isPending}
+                        />
+                      )}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => onGuardarTitulares(g)}
+                          disabled={isPending}
+                          className="rounded-lg bg-gardner-azul px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-gardner-azul-oscuro disabled:opacity-60"
+                        >
+                          {isPending ? "Guardando…" : "Guardar"}
+                        </button>
+                        <button
+                          onClick={cancelarEdicion}
+                          disabled={isPending}
+                          className="rounded-lg px-2 py-1.5 text-xs font-medium text-gardner-gris/70 transition hover:bg-gardner-gris/10"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`truncate text-xs ${
-                          g.docenteTitular ? "font-medium text-gardner-gris" : "italic text-gardner-gris/45"
-                        }`}
-                      >
-                        {g.docenteTitular ?? "Sin asignar"}
-                      </span>
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <NombreTitular
+                          etiqueta={admiteTitularIngles(g.nivelAcademico) ? "Español" : null}
+                          nombre={g.docenteTitular}
+                        />
+                        {admiteTitularIngles(g.nivelAcademico) && (
+                          <NombreTitular etiqueta="Inglés" nombre={g.docenteTitularIngles} />
+                        )}
+                      </div>
                       <button
                         onClick={() => empezarEdicion(g)}
                         disabled={isPending || editando !== null}
-                        title="Cambiar el tutor de este grupo"
+                        title="Cambiar los titulares de este grupo"
                         className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-gardner-azul-oscuro transition hover:bg-gardner-azul/10 disabled:opacity-40"
                       >
                         <span className="material-symbols-outlined text-[15px]">edit</span>
@@ -243,9 +288,76 @@ export default function GruposAdminClient() {
       </div>
 
       <p className="text-[11px] leading-relaxed text-gardner-gris/55">
+        Los grupos de Primaria llevan dos titulares —uno de Español y uno de Inglés— porque la enseñanza es bilingüe y
+        cada maestro acompaña medio día. Secundaria y Preparatoria llevan uno.
+      </p>
+
+      <p className="text-[11px] leading-relaxed text-gardner-gris/55">
         El borrado es definitivo y no se puede deshacer desde el panel. Por eso solo se habilita en grupos sin alumnos, y
         tampoco procede si el grupo tiene comunicados enviados, para no perder ese historial.
       </p>
+    </div>
+  );
+}
+
+/** Un desplegable de docente, con su etiqueta de rol encima. */
+function SelectorTitular({
+  etiqueta,
+  valor,
+  onChange,
+  docentes,
+  deshabilitado,
+  autoFocus,
+}: {
+  etiqueta: string;
+  valor: string;
+  onChange: (v: string) => void;
+  docentes: Docente[];
+  deshabilitado: boolean;
+  autoFocus?: boolean;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-gardner-gris/55">
+        {etiqueta}
+      </span>
+      <select
+        autoFocus={autoFocus}
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={deshabilitado}
+        className="w-full max-w-[220px] rounded-lg border border-gardner-azul bg-white px-2.5 py-1.5 text-xs text-gardner-gris outline-none ring-2 ring-gardner-azul/20 disabled:opacity-60"
+      >
+        <option value="">Sin asignar</option>
+        {docentes.map((d) => (
+          <option key={d.id} value={d.id}>
+            {d.nombre}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/**
+ * Nombre del titular en modo lectura. La etiqueta de idioma solo aparece en
+ * Primaria: en los demás niveles hay uno solo y ponerle "Titular" sería ruido.
+ */
+function NombreTitular({ etiqueta, nombre }: { etiqueta: string | null; nombre: string | null }) {
+  return (
+    <div className="flex items-baseline gap-1.5">
+      {etiqueta && (
+        <span className="shrink-0 rounded bg-gardner-azul/10 px-1.5 py-0.5 text-[10px] font-semibold text-gardner-azul-oscuro">
+          {etiqueta}
+        </span>
+      )}
+      <span
+        className={`truncate text-xs ${
+          nombre ? "font-medium text-gardner-gris" : "italic text-gardner-gris/45"
+        }`}
+      >
+        {nombre ?? "Sin asignar"}
+      </span>
     </div>
   );
 }

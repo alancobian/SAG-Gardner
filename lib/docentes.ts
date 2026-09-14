@@ -134,19 +134,31 @@ export async function obtenerFichaDocente(
     ),
   ]);
 
-  // Grupos donde este docente es el titular. La columna la agrega la migracion
-  // 1, asi que la consulta va con red de seguridad: si aun no existe, la ficha
-  // se muestra igual, solo sin esa linea.
-  let gruposTitular: string[] = [];
-  try {
-    const rows = await supaGet<{ nombre: string }>(
-      "grupos",
-      qs([eqP("docente_titular_id", docente.id), "select=nombre", "order=nombre.asc"])
-    );
-    gruposTitular = rows.map((g) => g.nombre);
-  } catch {
-    gruposTitular = [];
+  // Grupos donde este docente es titular, por cualquiera de los dos roles: el
+  // titular normal o el co-titular de Ingles de Primaria (migracion 4). Ambas
+  // consultas van con red de seguridad porque las columnas las agregan
+  // migraciones: si aun no existen, la ficha se muestra igual, sin esa linea.
+  async function gruposDondeEsTitular(campo: string): Promise<string[]> {
+    try {
+      const rows = await supaGet<{ nombre: string }>(
+        "grupos",
+        qs([eqP(campo, docente.id), "select=nombre", "order=nombre.asc"])
+      );
+      return rows.map((g) => g.nombre);
+    } catch {
+      return [];
+    }
   }
+
+  const [comoTitular, comoIngles] = await Promise.all([
+    gruposDondeEsTitular("docente_titular_id"),
+    gruposDondeEsTitular("docente_titular_ingles_id"),
+  ]);
+  // Un mismo grupo no puede aparecer dos veces (asignarDocenteTitular lo
+  // impide), pero se deduplica igual por si acaso.
+  const gruposTitular = [...new Set([...comoTitular, ...comoIngles])].sort((a, b) =>
+    a.localeCompare(b, "es", { numeric: true })
+  );
 
   return {
     id: docente.id,

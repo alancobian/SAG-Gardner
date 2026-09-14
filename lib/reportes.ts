@@ -87,24 +87,43 @@ export type ReporteDiario = {
   comparativa: ComparativaDia | null;
 };
 
-// El tutor de cada grupo vive en grupos.docente_titular_id, columna que agrega
-// la migracion 1. Se consulta aparte y con red de seguridad para que el
-// dashboard siga funcionando si la migracion todavia no se ha corrido: en ese
-// caso simplemente no hay tutores y las tarjetas lo omiten.
+// Los titulares de cada grupo viven en grupos.docente_titular_id (migracion 1)
+// y grupos.docente_titular_ingles_id (migracion 4, solo Primaria por ser
+// bilingue). Se consulta aparte y con red de seguridad para que el dashboard
+// siga funcionando si alguna migracion todavia no se ha corrido: en ese caso
+// simplemente no hay tutores y las tarjetas lo omiten.
+//
+// Cuando hay dos, se muestran juntos ("Fulana · Mengano"): la tarjeta de grupo
+// responde "a quien le aviso", y en Primaria la respuesta son las dos personas.
+type TitularesRow = {
+  id: string;
+  docente_titular: { nombre: string } | null;
+  docente_titular_ingles?: { nombre: string } | null;
+};
+
 async function obtenerTutoresPorGrupo(): Promise<Map<string, string>> {
+  const conIngles =
+    "select=id,docente_titular:docentes!grupos_docente_titular_id_fkey(nombre)," +
+    "docente_titular_ingles:docentes!grupos_docente_titular_ingles_id_fkey(nombre)";
+  const soloTitular = "select=id,docente_titular:docentes!grupos_docente_titular_id_fkey(nombre)";
+
+  let rows: TitularesRow[];
   try {
-    const rows = await supaGet<{ id: string; docente_titular: { nombre: string } | null }>(
-      "grupos",
-      qs(["select=id,docente_titular:docentes!grupos_docente_titular_id_fkey(nombre)", "limit=200"])
-    );
-    const mapa = new Map<string, string>();
-    rows.forEach((g) => {
-      if (g.docente_titular) mapa.set(g.id, g.docente_titular.nombre);
-    });
-    return mapa;
+    rows = await supaGet<TitularesRow>("grupos", qs([conIngles, "limit=200"]));
   } catch {
-    return new Map();
+    try {
+      rows = await supaGet<TitularesRow>("grupos", qs([soloTitular, "limit=200"]));
+    } catch {
+      return new Map();
+    }
   }
+
+  const mapa = new Map<string, string>();
+  rows.forEach((g) => {
+    const nombres = [g.docente_titular?.nombre, g.docente_titular_ingles?.nombre].filter(Boolean);
+    if (nombres.length) mapa.set(g.id, nombres.join(" · "));
+  });
+  return mapa;
 }
 
 // Alumnos con una falta justificada que cubra la fecha dada. Igual que arriba,

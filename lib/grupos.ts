@@ -26,27 +26,63 @@ const ORDEN_NIVEL: Record<string, number> = {
 
 // ---- Administración de grupos (Ajustes → Grupos, solo Administrador) ----
 
+/**
+ * Roles de titular que admite un grupo.
+ *
+ * Primaria es bilingüe y tiene dos responsables por grupo (medio día en cada
+ * idioma); el resto de los niveles tiene uno solo. Ver migración 4.
+ */
+export type RolTitular = "titular" | "ingles";
+
+/** Solo Primaria lleva co-titular de Inglés. */
+export function admiteTitularIngles(nivelAcademico: string): boolean {
+  return nivelAcademico === "Primaria";
+}
+
+/** Etiqueta del rol principal, que cambia de nombre según el nivel. */
+export function etiquetaTitular(nivelAcademico: string): string {
+  return admiteTitularIngles(nivelAcademico) ? "Titular de Español" : "Titular";
+}
+
 export type GrupoAdmin = Grupo & {
   alumnos: number;
   docenteTitularId: string | null;
   docenteTitular: string | null;
+  docenteTitularInglesId: string | null;
+  docenteTitularIngles: string | null;
 };
 
 type GrupoAdminRow = GrupoRow & {
   docente_titular_id: string | null;
   docente_titular: { nombre: string } | null;
+  docente_titular_ingles_id?: string | null;
+  docente_titular_ingles?: { nombre: string } | null;
   alumnos: { count: number }[];
 };
 
+const SELECT_TITULARES =
+  "select=*,docente_titular:docentes!grupos_docente_titular_id_fkey(nombre)," +
+  "docente_titular_ingles:docentes!grupos_docente_titular_ingles_id_fkey(nombre),alumnos(count)";
+
+const SELECT_TITULARES_SIN_INGLES =
+  "select=*,docente_titular:docentes!grupos_docente_titular_id_fkey(nombre),alumnos(count)";
+
 export async function listarGruposAdmin(): Promise<GrupoAdmin[]> {
-  const rows = await supaGet<GrupoAdminRow>(
-    "grupos",
-    qs([
-      "select=*,docente_titular:docentes!grupos_docente_titular_id_fkey(nombre),alumnos(count)",
-      "order=nombre.asc",
-      "limit=200",
-    ])
-  );
+  // La columna docente_titular_ingles_id la agrega la migración 4. Si el
+  // código llega a producción antes que la migración, se reintenta sin ella en
+  // vez de dejar la pantalla de Grupos completamente rota.
+  let rows: GrupoAdminRow[];
+  try {
+    rows = await supaGet<GrupoAdminRow>(
+      "grupos",
+      qs([SELECT_TITULARES, "order=nombre.asc", "limit=200"])
+    );
+  } catch {
+    rows = await supaGet<GrupoAdminRow>(
+      "grupos",
+      qs([SELECT_TITULARES_SIN_INGLES, "order=nombre.asc", "limit=200"])
+    );
+  }
   return rows
     .map((g) => ({
       id: g.id,
@@ -56,6 +92,8 @@ export async function listarGruposAdmin(): Promise<GrupoAdmin[]> {
       alumnos: g.alumnos?.[0]?.count ?? 0,
       docenteTitularId: g.docente_titular_id,
       docenteTitular: g.docente_titular?.nombre ?? null,
+      docenteTitularInglesId: g.docente_titular_ingles_id ?? null,
+      docenteTitularIngles: g.docente_titular_ingles?.nombre ?? null,
     }))
     .sort((a, b) => {
       const nivelA = ORDEN_NIVEL[a.nivelAcademico] ?? 99;
@@ -65,9 +103,28 @@ export async function listarGruposAdmin(): Promise<GrupoAdmin[]> {
     });
 }
 
-export async function asignarDocenteTitular(grupoId: string, docenteId: string | null): Promise<void> {
+export async function asignarDocenteTitular(
+  grupoId: string,
+  docenteId: string | null,
+  rol: RolTitular = "titular"
+): Promise<void> {
   if (!grupoId) throw new Error("Falta el grupo");
-  await supaUpdate("grupos", eqP("id", grupoId), { docente_titular_id: docenteId });
+
+  // Un mismo docente no puede ser los dos titulares del grupo: sería un error
+  // de captura, no una configuración válida.
+  if (docenteId) {
+    const [grupo] = await supaGet<{
+      docente_titular_id: string | null;
+      docente_titular_ingles_id?: string | null;
+    }>("grupos", qs([eqP("id", grupoId), "select=docente_titular_id,docente_titular_ingles_id"]));
+    const otro = rol === "ingles" ? grupo?.docente_titular_id : grupo?.docente_titular_ingles_id;
+    if (otro && otro === docenteId) {
+      throw new Error("Ese docente ya es el otro titular del grupo. Elige a alguien distinto.");
+    }
+  }
+
+  const campo = rol === "ingles" ? "docente_titular_ingles_id" : "docente_titular_id";
+  await supaUpdate("grupos", eqP("id", grupoId), { [campo]: docenteId });
 }
 
 // Borrado seguro: solo procede si el grupo esta realmente vacio.

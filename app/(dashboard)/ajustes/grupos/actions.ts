@@ -6,7 +6,13 @@
 
 import { revalidatePath } from "next/cache";
 import { requerirSesion } from "@/lib/auth";
-import { listarGruposAdmin, asignarDocenteTitular, eliminarGrupo, type GrupoAdmin } from "@/lib/grupos";
+import {
+  listarGruposAdmin,
+  asignarDocenteTitular,
+  eliminarGrupo,
+  type GrupoAdmin,
+  type RolTitular,
+} from "@/lib/grupos";
 import { listarDocentes, type Docente } from "@/lib/docentes";
 
 type Resultado<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -28,11 +34,12 @@ export async function listarDocentesParaTitularAction(): Promise<Resultado<Docen
 
 export async function asignarDocenteTitularAction(
   grupoId: string,
-  docenteId: string | null
+  docenteId: string | null,
+  rol: RolTitular = "titular"
 ): Promise<Resultado<null>> {
   if (!(await requerirAdmin())) return { ok: false, error: "No autorizado" };
   try {
-    await asignarDocenteTitular(grupoId, docenteId);
+    await asignarDocenteTitular(grupoId, docenteId, rol);
     // El dashboard muestra el tutor en cada tarjeta de grupo.
     revalidatePath("/asistencia");
     revalidatePath("/ajustes");
