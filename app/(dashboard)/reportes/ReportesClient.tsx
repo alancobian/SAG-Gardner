@@ -8,6 +8,7 @@
 // baja. Por eso la tabla abre ordenada de peor a mejor asistencia: lo que hay
 // que atender queda arriba sin que nadie toque un filtro.
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import type { AlumnoAcumulado, GrupoCobertura, ReporteAcumulado } from "@/lib/acumulados";
 import { COBERTURA_CONFIABLE } from "@/lib/acumulados";
@@ -263,6 +264,14 @@ export default function ReportesClient({
             {t.etiqueta}
           </button>
         ))}
+
+        <Link
+          href="/reportes/semanal"
+          className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-medium text-gardner-gris/80 transition hover:bg-gardner-azul/10 hover:text-gardner-azul-oscuro"
+        >
+          <span className="material-symbols-outlined text-[18px]">mail</span>
+          Reporte semanal a docentes
+        </Link>
       </div>
 
       {vista === "alumnos" && alumnosPocoConfiables > 0 && (
