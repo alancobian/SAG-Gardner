@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Administrativo, FichaAdministrativo } from "@/lib/administrativos";
-import { AREAS_SUGERIDAS } from "@/lib/personal";
+import { AREAS_ADMINISTRATIVAS } from "@/lib/personal";
 import {
   listarAdministrativosAction,
   obtenerFichaAdministrativoAction,
@@ -115,6 +115,12 @@ export default function AdministrativosClient({ esAdmin }: { esAdmin: boolean })
       setError("Falta el nombre");
       return;
     }
+    // El área se exige al dar de alta: si se permite vacía, en un mes la mitad
+    // del personal queda "Sin área" y el filtro deja de servir para algo.
+    if (!nuevaArea) {
+      setError("Selecciona el área a la que pertenece");
+      return;
+    }
     startTransition(async () => {
       const res = await crearAdministrativoAction({
         nombre: nuevoNombre,
@@ -207,19 +213,20 @@ export default function AdministrativosClient({ esAdmin }: { esAdmin: boolean })
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-semibold text-gardner-gris/70">Área</span>
-            {/* Lista con sugerencias pero abierta: siempre aparece un área nueva. */}
-            <input
-              list="areas-sugeridas"
+            {/* Lista cerrada: con texto libre, "Prefectura" y "prefectura"
+                acabarían siendo dos áreas distintas en el filtro. */}
+            <select
               value={nuevaArea}
               onChange={(e) => setNuevaArea(e.target.value)}
-              placeholder="Control escolar, Mantenimiento…"
-              className="rounded-xl border border-gardner-gris/20 px-3 py-2 text-sm text-gardner-gris"
-            />
-            <datalist id="areas-sugeridas">
-              {[...new Set([...AREAS_SUGERIDAS, ...areas])].map((a) => (
-                <option key={a} value={a} />
+              className="rounded-xl border border-gardner-gris/20 bg-white px-3 py-2 text-sm text-gardner-gris"
+            >
+              <option value="">Selecciona un área</option>
+              {AREAS_ADMINISTRATIVAS.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
               ))}
-            </datalist>
+            </select>
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-semibold text-gardner-gris/70">Teléfono (opcional)</span>

@@ -29,14 +29,25 @@ export function esAdministrativo(tipo: string | null | undefined): boolean {
   return tipo === "Administrativo";
 }
 
-/** Áreas sugeridas. No es una lista cerrada: el campo acepta texto libre. */
-export const AREAS_SUGERIDAS = [
+/**
+ * Áreas administrativas del Instituto Gardner, tal como las definió Dirección.
+ *
+ * Es una lista CERRADA a propósito, no un campo de texto libre: "Prefectura" y
+ * "prefectura" serían dos áreas distintas en el filtro, y con capturas hechas
+ * por varias personas eso pasa en la primera semana. El organigrama cambia
+ * poco, así que agregar una es editar esta línea.
+ *
+ * "Dirección" engloba las tres direcciones.
+ */
+export const AREAS_ADMINISTRATIVAS = [
   "Dirección",
-  "Control escolar",
-  "Administración",
+  "Coordinación Académica",
+  "Control Escolar",
+  "Departamento de Psicopedagogía",
+  "Departamento de Contabilidad",
+  "Departamento de Marketing",
   "Prefectura",
-  "Recepción",
-  "Mantenimiento",
   "Enfermería",
-  "Biblioteca",
 ] as const;
+
+export type AreaAdministrativa = (typeof AREAS_ADMINISTRATIVAS)[number];
