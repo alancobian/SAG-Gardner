@@ -4,6 +4,7 @@
 // que el backend original recibia datos.filas ya parseado desde el panel.
 
 import { supaGet, supaInsert, eqP, qs } from "./supabaseAdmin";
+import { AREAS_ADMINISTRATIVAS } from "./personal";
 
 async function buscarOCrearGrupo(nombreGrupo: string, grado?: string, nivelAcademico?: string): Promise<string> {
   const existentes = await supaGet<{ id: string }>("grupos", eqP("nombre", nombreGrupo));
@@ -50,6 +51,13 @@ function generarCodigoQrDocente(): string {
   return codigo;
 }
 
+function generarCodigoQrAdministrativo(): string {
+  const caracteres = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let codigo = "ADM-";
+  for (let i = 0; i < 8; i++) codigo += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+  return codigo;
+}
+
 export type FilaImportacionAlumno = {
   nombre: string;
   grupo?: string;
@@ -63,6 +71,13 @@ export type FilaImportacionAlumno = {
 export type FilaImportacionDocente = {
   nombre: string;
   nivelAcademico?: string;
+  telefono?: string;
+  correo?: string;
+};
+
+export type FilaImportacionAdministrativo = {
+  nombre: string;
+  area?: string;
   telefono?: string;
   correo?: string;
 };
@@ -125,6 +140,68 @@ export async function importarDocentes(filas: FilaImportacionDocente[]): Promise
         estatus: "Activo",
       });
       resultados.push({ nombre: fila.nombre.trim(), ok: true, codigoQr, id: docenteInsertado.id });
+    } catch (errorFila) {
+      resultados.push({
+        nombre: fila.nombre || "(sin nombre)",
+        ok: false,
+        error: errorFila instanceof Error ? errorFila.message : String(errorFila),
+      });
+    }
+  }
+  return resultados;
+}
+
+/**
+ * Importa personal administrativo. Misma forma que importarDocentes, pero
+ * marcando el tipo y validando el área contra la lista oficial: un CSV con
+ * "prefectura" en minúscula crearía un área paralela que rompe el filtro.
+ */
+export async function importarAdministrativos(
+  filas: FilaImportacionAdministrativo[]
+): Promise<ResultadoImportacion[]> {
+  const resultados: ResultadoImportacion[] = [];
+  // Índice sin acentos ni mayúsculas, para aceptar "psicopedagogia" y
+  // guardarlo como "Departamento de Psicopedagogía".
+  const normalizar = (s: string) =>
+    s
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+  const areasPorClave = new Map(AREAS_ADMINISTRATIVAS.map((a) => [normalizar(a), a]));
+
+  for (const fila of filas) {
+    try {
+      if (!fila.nombre || !fila.nombre.trim()) {
+        resultados.push({ nombre: fila.nombre || "(sin nombre)", ok: false, error: "Falta el nombre" });
+        continue;
+      }
+      if (!fila.area || !fila.area.trim()) {
+        resultados.push({ nombre: fila.nombre.trim(), ok: false, error: "Falta el área" });
+        continue;
+      }
+      const area = areasPorClave.get(normalizar(fila.area));
+      if (!area) {
+        resultados.push({
+          nombre: fila.nombre.trim(),
+          ok: false,
+          error: `Área no reconocida: "${fila.area.trim()}". Debe ser una de: ${AREAS_ADMINISTRATIVAS.join(", ")}`,
+        });
+        continue;
+      }
+
+      const codigoQr = generarCodigoQrAdministrativo();
+      const insertado = await supaInsert<{ id: string }>("docentes", {
+        nombre: fila.nombre.trim(),
+        tipo: "Administrativo",
+        departamento: area,
+        telefono: fila.telefono || null,
+        correo: fila.correo || null,
+        nivel_academico: null,
+        codigo_qr: codigoQr,
+        estatus: "Activo",
+      });
+      resultados.push({ nombre: fila.nombre.trim(), ok: true, codigoQr, id: insertado.id });
     } catch (errorFila) {
       resultados.push({
         nombre: fila.nombre || "(sin nombre)",

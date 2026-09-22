@@ -6,16 +6,20 @@ import UsuariosClient from "./usuarios/UsuariosClient";
 import CargarAlumnosClient from "./cargar-alumnos/CargarAlumnosClient";
 import CargarDocentesClient from "./cargar-docentes/CargarDocentesClient";
 import HorarioDocentesClient from "./horario-docentes/HorarioDocentesClient";
+import HorarioAdministrativoClient from "./horario-administrativo/HorarioAdministrativoClient";
 import ArchivoClient from "./ArchivoClient";
 import GruposAdminClient from "./grupos/GruposAdminClient";
+import CargarAdministrativosClient from "./cargar-administrativos/CargarAdministrativosClient";
 
 const TABS = [
   { clave: "calendario", etiqueta: "Calendario escolar", icono: "calendar_month" },
   { clave: "grupos", etiqueta: "Grupos", icono: "groups" },
   { clave: "horario-docentes", etiqueta: "Horario de docentes", icono: "schedule" },
+  { clave: "horario-administrativo", etiqueta: "Horario administrativo", icono: "work_history" },
   { clave: "usuarios", etiqueta: "Usuarios y roles", icono: "manage_accounts" },
   { clave: "cargar-alumnos", etiqueta: "Cargar alumnos", icono: "person_add" },
   { clave: "cargar-docentes", etiqueta: "Cargar docentes", icono: "badge" },
+  { clave: "cargar-administrativos", etiqueta: "Cargar administrativos", icono: "work" },
   { clave: "archivo", etiqueta: "Archivo", icono: "archive" },
 ] as const;
 
@@ -52,9 +56,11 @@ export default function AjustesClient({ miPropioId }: { miPropioId: string }) {
         {tab === "calendario" && <CalendarioClient />}
         {tab === "grupos" && <GruposAdminClient />}
         {tab === "horario-docentes" && <HorarioDocentesClient />}
+        {tab === "horario-administrativo" && <HorarioAdministrativoClient />}
         {tab === "usuarios" && <UsuariosClient miPropioId={miPropioId} />}
         {tab === "cargar-alumnos" && <CargarAlumnosClient />}
         {tab === "cargar-docentes" && <CargarDocentesClient />}
+        {tab === "cargar-administrativos" && <CargarAdministrativosClient />}
         {tab === "archivo" && <ArchivoClient />}
       </div>
     </div>
