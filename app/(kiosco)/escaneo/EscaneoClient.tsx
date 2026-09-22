@@ -352,7 +352,11 @@ export default function EscaneoClient() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-gardner-gris">{item.nombre}</p>
                   <p className="truncate text-xs text-gardner-gris/60">
-                    {item.tipoPersona === "docente" ? "Docente" : "Alumno"}
+                    {item.tipoPersona === "docente"
+                      ? "Docente"
+                      : item.tipoPersona === "administrativo"
+                        ? "Administrativo"
+                        : "Alumno"}
                     {item.grupo ? ` · ${item.grupo}` : ""}
                   </p>
                 </div>

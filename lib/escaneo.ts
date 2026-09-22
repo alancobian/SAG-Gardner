@@ -6,6 +6,7 @@
 // entrada o salida.
 
 import { supaGet, supaInsert, supaUpdate, eqP, qs } from "./supabaseAdmin";
+import { esAdministrativo } from "./personal";
 
 const OFFSET_HORAS_MX = -6;
 
@@ -65,7 +66,7 @@ export type ResultadoEscaneo =
 export type RespuestaEscaneo = {
   resultado: ResultadoEscaneo;
   estatus?: "Puntual" | "Retardo";
-  tipoPersona?: "alumno" | "docente";
+  tipoPersona?: "alumno" | "docente" | "administrativo";
   persona?: { nombre: string; foto: string | null; grupo: string | null };
 };
 
@@ -85,6 +86,9 @@ type DocenteEscaneoRow = {
   estatus: string;
   foto_url: string | null;
   nivel_academico: string | null;
+  // Migración 5. Ausente en bases donde todavía no se corrió: se asume Docente.
+  tipo?: string | null;
+  departamento?: string | null;
 };
 
 type RegistroAsistenciaRow = { id: string; hora_entrada: string; hora_salida: string | null };
@@ -161,19 +165,33 @@ async function procesarEscaneoAlumno(alumno: AlumnoEscaneoRow, usuarioId: string
 // "Retardo" si regresa tarde de un hueco -- no solo en la entrada de la
 // mañana.
 async function procesarEscaneoDocente(docente: DocenteEscaneoRow, usuarioId: string): Promise<RespuestaEscaneo> {
-  const persona = { nombre: docente.nombre, foto: docente.foto_url || null, grupo: docente.nivel_academico || null };
+  // El personal administrativo vive en la misma tabla (migración 5) y comparte
+  // toda esta mecánica. Solo cambian dos cosas: la etiqueta que ve quien
+  // escanea, y contra qué horario se mide el retardo.
+  const administrativo = esAdministrativo(docente.tipo);
+  const tipoPersona = administrativo ? ("administrativo" as const) : ("docente" as const);
+  const persona = {
+    nombre: docente.nombre,
+    foto: docente.foto_url || null,
+    grupo: administrativo
+      ? docente.departamento || "Personal administrativo"
+      : docente.nivel_academico || null,
+  };
 
   if (docente.estatus !== "Activo") {
-    return { resultado: "inactivo", tipoPersona: "docente", persona };
+    return { resultado: "inactivo", tipoPersona, persona };
   }
 
   const ahoraMx = horaLocalMx();
   const fechaHoy = fechaComoTexto(ahoraMx);
 
-  const bloquesHoy = await supaGet<BloqueHorarioEscaneoRow>(
-    "bloques_horario_docentes",
-    qs([eqP("docente_id", docente.id), eqP("dia_semana", String(diaSemanaMx(ahoraMx))), "order=hora_inicio.asc"])
-  );
+  // Los administrativos no tienen bloques de clase: siempre jornada completa.
+  const bloquesHoy = administrativo
+    ? []
+    : await supaGet<BloqueHorarioEscaneoRow>(
+        "bloques_horario_docentes",
+        qs([eqP("docente_id", docente.id), eqP("dia_semana", String(diaSemanaMx(ahoraMx))), "order=hora_inicio.asc"])
+      );
 
   if (bloquesHoy.length === 0) {
     // Tiempo completo: comportamiento identico al de siempre.
@@ -183,23 +201,28 @@ async function procesarEscaneoDocente(docente: DocenteEscaneoRow, usuarioId: str
     );
 
     if (registrosHoy.length > 0 && registrosHoy[0].hora_salida) {
-      return { resultado: "ya_completo", tipoPersona: "docente", persona };
+      return { resultado: "ya_completo", tipoPersona, persona };
     }
 
     if (registrosHoy.length > 0) {
       const registro = registrosHoy[0];
       if (esEscaneoDuplicado(registro.hora_entrada, ahoraMx)) {
-        return { resultado: "duplicado", tipoPersona: "docente", persona };
+        return { resultado: "duplicado", tipoPersona, persona };
       }
       await supaUpdate("asistencia_docentes", eqP("id", registro.id), {
         hora_salida: ahoraMx,
         registrado_por_salida_id: usuarioId,
       });
-      return { resultado: "salida", tipoPersona: "docente", persona };
+      return { resultado: "salida", tipoPersona, persona };
     }
 
     let estatusEntrada: "Puntual" | "Retardo" = "Puntual";
-    const horarios = await supaGet<HorarioRetardoRow>("horario_retardo_docentes", "limit=1");
+    // Cada tipo de personal se mide contra su propio horario: oficina no tiene
+    // por qué abrir a la misma hora que las clases.
+    const horarios = await supaGet<HorarioRetardoRow>(
+      administrativo ? "horario_administrativo" : "horario_retardo_docentes",
+      "limit=1"
+    ).catch(() => [] as HorarioRetardoRow[]);
     if (horarios.length > 0) {
       const horario = horarios[0];
       const minutosProgramados = minutosDesdeTexto(horario.hora_entrada);
@@ -218,7 +241,7 @@ async function procesarEscaneoDocente(docente: DocenteEscaneoRow, usuarioId: str
       registrado_por_entrada_id: usuarioId,
     });
 
-    return { resultado: "entrada", estatus: estatusEntrada, tipoPersona: "docente", persona };
+    return { resultado: "entrada", estatus: estatusEntrada, tipoPersona, persona };
   }
 
   // Docente con bloques hoy: soporte multi-sesion.
@@ -230,17 +253,17 @@ async function procesarEscaneoDocente(docente: DocenteEscaneoRow, usuarioId: str
   const sesionAbierta = registrosHoy.find((r) => !r.hora_salida);
   if (sesionAbierta) {
     if (esEscaneoDuplicado(sesionAbierta.hora_entrada, ahoraMx)) {
-      return { resultado: "duplicado", tipoPersona: "docente", persona };
+      return { resultado: "duplicado", tipoPersona, persona };
     }
     await supaUpdate("asistencia_docentes", eqP("id", sesionAbierta.id), {
       hora_salida: ahoraMx,
       registrado_por_salida_id: usuarioId,
     });
-    return { resultado: "salida", tipoPersona: "docente", persona };
+    return { resultado: "salida", tipoPersona, persona };
   }
 
   if (registrosHoy.length >= bloquesHoy.length) {
-    return { resultado: "ya_completo", tipoPersona: "docente", persona };
+    return { resultado: "ya_completo", tipoPersona, persona };
   }
 
   const bloqueCorrespondiente = bloquesHoy[registrosHoy.length];
@@ -260,7 +283,7 @@ async function procesarEscaneoDocente(docente: DocenteEscaneoRow, usuarioId: str
     registrado_por_entrada_id: usuarioId,
   });
 
-  return { resultado: "entrada", estatus: estatusEntrada, tipoPersona: "docente", persona };
+  return { resultado: "entrada", estatus: estatusEntrada, tipoPersona, persona };
 }
 
 /** Puerto de post_escaneo: busca por codigoQr entre alumnos y luego docentes. */
@@ -272,7 +295,19 @@ export async function registrarEscaneo(codigoQr: string, usuarioId: string): Pro
   if (alumnos.length > 0) {
     return procesarEscaneoAlumno(alumnos[0], usuarioId);
   }
-  const docentes = await supaGet<DocenteEscaneoRow>("docentes", eqP("codigo_qr", codigoQr));
+  // Docentes y personal administrativo comparten tabla (migración 5), así que
+  // una sola consulta cubre a los dos. El select es explícito para pedir tipo y
+  // departamento; si la migración no se ha corrido, se reintenta con "*" y todo
+  // se trata como docente, que es lo que era antes.
+  let docentes: DocenteEscaneoRow[];
+  try {
+    docentes = await supaGet<DocenteEscaneoRow>(
+      "docentes",
+      qs([eqP("codigo_qr", codigoQr), "select=id,nombre,estatus,foto_url,nivel_academico,tipo,departamento"])
+    );
+  } catch {
+    docentes = await supaGet<DocenteEscaneoRow>("docentes", eqP("codigo_qr", codigoQr));
+  }
   if (docentes.length > 0) {
     return procesarEscaneoDocente(docentes[0], usuarioId);
   }
@@ -302,7 +337,7 @@ export async function registrarEscaneoManual(alumnoId: string, usuarioId: string
 
 export type ItemHistorial = {
   id: string;
-  tipoPersona: "alumno" | "docente";
+  tipoPersona: "alumno" | "docente" | "administrativo";
   nombre: string;
   foto: string | null;
   grupo: string | null;
@@ -327,7 +362,13 @@ type HistorialDocenteRow = {
   hora_entrada: string;
   hora_salida: string | null;
   updated_at: string;
-  docente: { nombre: string; foto_url: string | null; nivel_academico: string | null } | null;
+  docente: {
+    nombre: string;
+    foto_url: string | null;
+    nivel_academico: string | null;
+    tipo?: string | null;
+    departamento?: string | null;
+  } | null;
 };
 
 export async function obtenerHistorialReciente(limite = 10): Promise<ItemHistorial[]> {
@@ -343,7 +384,7 @@ export async function obtenerHistorialReciente(limite = 10): Promise<ItemHistori
     supaGet<HistorialDocenteRow>(
       "asistencia_docentes",
       qs([
-        "select=id,estatus,hora_entrada,hora_salida,updated_at,docente:docentes(nombre,foto_url,nivel_academico)",
+        "select=id,estatus,hora_entrada,hora_salida,updated_at,docente:docentes(nombre,foto_url,nivel_academico,tipo,departamento)",
         "order=updated_at.desc",
         `limit=${limite}`,
       ])
@@ -364,14 +405,18 @@ export async function obtenerHistorialReciente(limite = 10): Promise<ItemHistori
       actualizado: r.updated_at,
     }));
 
+  // Docentes y administrativos salen de la misma tabla y del mismo historial;
+  // se separan aquí para que la etiqueta del kiosco diga cuál es cuál.
   const itemsDocentes: ItemHistorial[] = registrosDocentes
     .filter((r) => r.docente)
     .map((r) => ({
       id: r.id,
-      tipoPersona: "docente" as const,
+      tipoPersona: esAdministrativo(r.docente!.tipo) ? ("administrativo" as const) : ("docente" as const),
       nombre: r.docente!.nombre,
       foto: r.docente!.foto_url || null,
-      grupo: r.docente!.nivel_academico || null,
+      grupo: esAdministrativo(r.docente!.tipo)
+        ? r.docente!.departamento || "Personal administrativo"
+        : r.docente!.nivel_academico || null,
       estatus: r.estatus,
       movimiento: r.hora_salida ? ("salida" as const) : ("entrada" as const),
       hora: r.hora_salida || r.hora_entrada,

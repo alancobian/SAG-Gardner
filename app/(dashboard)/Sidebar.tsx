@@ -12,6 +12,7 @@ const ITEMS: Item[] = [
   { id: "asistencia", label: "Asistencia", href: "/asistencia", icono: "calendar_today" },
   { id: "grupos-alumnos", label: "Grupos y Alumnos", href: "/grupos-alumnos", icono: "groups" },
   { id: "docentes", label: "Docentes", href: "/docentes", icono: "badge" },
+  { id: "administrativos", label: "Personal administrativo", href: "/administrativos", icono: "work" },
   { id: "justificantes", label: "Justificantes", href: "/justificantes", icono: "assignment_turned_in" },
   { id: "reportes", label: "Reportes", href: "/reportes", icono: "monitoring" },
   { id: "ajustes", label: "Ajustes", href: "/ajustes", icono: "settings" },

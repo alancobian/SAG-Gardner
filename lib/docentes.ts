@@ -4,6 +4,7 @@
 
 import { supaGet, supaInsert, supaUpdate, supaDelete, eqP, qs } from "./supabaseAdmin";
 import { filtroNivel, puedeVerNivel } from "./niveles";
+import { filtroTipoPersonal } from "./personal";
 
 export type Docente = {
   id: string;
@@ -22,16 +23,25 @@ type DocenteRow = {
 };
 
 // `niveles` acota el resultado al alcance del usuario (vacío = todos).
+//
+// El filtro por tipo es obligatorio: desde la migración 5 esta tabla guarda
+// también al personal administrativo, y sin él aparecerían aquí listados como
+// maestros. Si la columna todavía no existe se reintenta sin ella, para que el
+// panel siga funcionando entre el despliegue y la migración.
 export async function listarDocentes(niveles?: string[]): Promise<Docente[]> {
-  const rows = await supaGet<DocenteRow>(
-    "docentes",
-    qs([
-      "select=id,nombre,nivel_academico,estatus,foto_url",
-      filtroNivel(niveles),
-      "order=nombre.asc",
-      "limit=500",
-    ])
-  );
+  const select = "select=id,nombre,nivel_academico,estatus,foto_url";
+  let rows: DocenteRow[];
+  try {
+    rows = await supaGet<DocenteRow>(
+      "docentes",
+      qs([select, filtroTipoPersonal("Docente"), filtroNivel(niveles), "order=nombre.asc", "limit=500"])
+    );
+  } catch {
+    rows = await supaGet<DocenteRow>(
+      "docentes",
+      qs([select, filtroNivel(niveles), "order=nombre.asc", "limit=500"])
+    );
+  }
   return rows.map((d) => ({
     id: d.id,
     nombre: d.nombre,
