@@ -11,11 +11,13 @@ import ArchivoClient from "./ArchivoClient";
 import GruposAdminClient from "./grupos/GruposAdminClient";
 import CargarAdministrativosClient from "./cargar-administrativos/CargarAdministrativosClient";
 
+// Los dos horarios viven en una sola pestaña: son formularios cortos y verlos
+// juntos permite comparar de un vistazo a qué hora entra cada grupo de
+// personal, que es justo la pregunta al ajustar uno de los dos.
 const TABS = [
   { clave: "calendario", etiqueta: "Calendario escolar", icono: "calendar_month" },
   { clave: "grupos", etiqueta: "Grupos", icono: "groups" },
-  { clave: "horario-docentes", etiqueta: "Horario de docentes", icono: "schedule" },
-  { clave: "horario-administrativo", etiqueta: "Horario administrativo", icono: "work_history" },
+  { clave: "horarios", etiqueta: "Horarios", icono: "schedule" },
   { clave: "usuarios", etiqueta: "Usuarios y roles", icono: "manage_accounts" },
   { clave: "cargar-alumnos", etiqueta: "Cargar alumnos", icono: "person_add" },
   { clave: "cargar-docentes", etiqueta: "Cargar docentes", icono: "badge" },
@@ -35,12 +37,15 @@ export default function AjustesClient({ miPropioId }: { miPropioId: string }) {
         <p className="text-sm font-medium text-gardner-gris/75">Configuración del ciclo escolar, usuarios y carga de datos.</p>
       </div>
 
-      <div className="flex gap-1 overflow-x-auto rounded-2xl bg-white p-1.5 shadow-sm">
+      {/* Las pestañas se acomodan en varios renglones en vez de desbordarse en
+          una barra con scroll: con scroll horizontal las últimas quedan
+          escondidas y nadie las encuentra. */}
+      <div className="flex flex-wrap gap-1 rounded-2xl bg-white p-1.5 shadow-sm">
         {TABS.map((t) => (
           <button
             key={t.clave}
             onClick={() => setTab(t.clave)}
-            className={`flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-medium transition ${
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-medium transition sm:px-4 ${
               tab === t.clave
                 ? "bg-gardner-azul text-white shadow-sm"
                 : "text-gardner-gris/80 hover:bg-gardner-azul/10 hover:text-gardner-azul-oscuro"
@@ -55,8 +60,12 @@ export default function AjustesClient({ miPropioId }: { miPropioId: string }) {
       <div>
         {tab === "calendario" && <CalendarioClient />}
         {tab === "grupos" && <GruposAdminClient />}
-        {tab === "horario-docentes" && <HorarioDocentesClient />}
-        {tab === "horario-administrativo" && <HorarioAdministrativoClient />}
+        {tab === "horarios" && (
+          <div className="flex flex-col gap-8">
+            <HorarioDocentesClient />
+            <HorarioAdministrativoClient />
+          </div>
+        )}
         {tab === "usuarios" && <UsuariosClient miPropioId={miPropioId} />}
         {tab === "cargar-alumnos" && <CargarAlumnosClient />}
         {tab === "cargar-docentes" && <CargarDocentesClient />}

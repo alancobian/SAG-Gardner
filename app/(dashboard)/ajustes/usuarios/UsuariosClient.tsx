@@ -176,14 +176,17 @@ function FilaUsuario({
     );
   }
 
+  // flex-wrap + un ancho mínimo en el bloque de texto: en pantallas angostas
+  // los botones bajan a un segundo renglón en vez de aplastar el nombre hasta
+  // volverlo ilegible.
   return (
-    <div className="flex items-center gap-3 rounded-xl bg-white p-3 shadow-sm">
+    <div className="flex flex-wrap items-center gap-3 rounded-xl bg-white p-3 shadow-sm">
       <Iniciales nombre={usuario.nombre} />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-[180px] flex-1">
         <p className="truncate text-sm font-medium text-gardner-gris">
           {usuario.nombre} {esMiPropiaCuenta && <span className="text-xs text-gardner-gris/55">(tú)</span>}
         </p>
-        <p className="text-xs text-gardner-gris/65">
+        <p className="break-words text-xs text-gardner-gris/65">
           {usuario.correo} · {usuario.rol} · {describirAlcance(usuario.niveles)}
         </p>
         {error && <p className="mt-1 text-xs text-red-600">{error}</p>}

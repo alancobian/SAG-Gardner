@@ -158,8 +158,12 @@ export default function GruposAdminClient() {
         )}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-gardner-gris/15 bg-white">
-        <table className="w-full text-sm">
+      {/* Era overflow-hidden, que en pantallas angostas RECORTABA la tabla y
+          dejaba la columna de acciones fuera de alcance. Una tabla de cinco
+          columnas no se puede reacomodar en renglones sin perder sentido, así
+          que aquí sí corresponde desplazarla. */}
+      <div className="overflow-x-auto rounded-xl border border-gardner-gris/15 bg-white">
+        <table className="w-full min-w-[680px] text-sm">
           <thead className="bg-gardner-neutro text-left text-[11px] font-semibold uppercase tracking-wide text-gardner-gris/55">
             <tr>
               <th className="px-4 py-3">Grupo</th>
