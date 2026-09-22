@@ -15,6 +15,7 @@ import {
   obtenerFichaAdministrativoAction,
   crearAdministrativoAction,
   actualizarAdministrativoAction,
+  eliminarAdministrativoAction,
 } from "./actions";
 
 function iniciales(nombre: string) {
@@ -334,6 +335,11 @@ export default function AdministrativosClient({ esAdmin }: { esAdmin: boolean })
             await recargar();
             abrirFicha(ficha.id);
           }}
+          onEliminado={async (mensaje) => {
+            setAviso(mensaje);
+            setFicha(null);
+            await recargar();
+          }}
         />
       )}
     </div>
@@ -345,42 +351,73 @@ function Ficha({
   esAdmin,
   onCerrar,
   onGuardado,
+  onEliminado,
 }: {
   ficha: FichaAdministrativo;
   esAdmin: boolean;
   onCerrar: () => void;
   onGuardado: (mensaje: string) => void;
+  onEliminado: (mensaje: string) => void;
 }) {
   const [editando, setEditando] = useState(false);
-  const [areaBorrador, setAreaBorrador] = useState(ficha.area ?? "");
-  const [estatusBorrador, setEstatusBorrador] = useState(ficha.estatus);
+  const [borrador, setBorrador] = useState({
+    nombre: ficha.nombre,
+    area: ficha.area ?? "",
+    telefono: ficha.telefono ?? "",
+    correo: ficha.correo ?? "",
+    estatus: ficha.estatus,
+  });
   const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
+  const [confirmandoBorrado, setConfirmandoBorrado] = useState(false);
   const [guardando, startGuardar] = useTransition();
 
+  function campo<K extends keyof typeof borrador>(k: K) {
+    return (v: (typeof borrador)[K]) => setBorrador((b) => ({ ...b, [k]: v }));
+  }
+
   function empezar() {
-    setAreaBorrador(ficha.area ?? "");
-    setEstatusBorrador(ficha.estatus);
+    setBorrador({
+      nombre: ficha.nombre,
+      area: ficha.area ?? "",
+      telefono: ficha.telefono ?? "",
+      correo: ficha.correo ?? "",
+      estatus: ficha.estatus,
+    });
     setErrorEdicion(null);
     setEditando(true);
   }
 
   function guardar() {
     setErrorEdicion(null);
-    if (!areaBorrador) {
+    if (!borrador.nombre.trim()) {
+      setErrorEdicion("El nombre no puede quedar vacío");
+      return;
+    }
+    if (!borrador.area) {
       setErrorEdicion("Selecciona un área");
       return;
     }
     startGuardar(async () => {
-      const res = await actualizarAdministrativoAction(ficha.id, {
-        area: areaBorrador,
-        estatus: estatusBorrador,
-      });
+      const res = await actualizarAdministrativoAction(ficha.id, borrador);
       if (!res.ok) {
         setErrorEdicion(res.error);
         return;
       }
       setEditando(false);
-      onGuardado(`Se actualizaron los datos de ${ficha.nombre}.`);
+      onGuardado(`Se actualizaron los datos de ${borrador.nombre.trim()}.`);
+    });
+  }
+
+  function eliminar() {
+    setErrorEdicion(null);
+    startGuardar(async () => {
+      const res = await eliminarAdministrativoAction(ficha.id);
+      if (!res.ok) {
+        setErrorEdicion(res.error);
+        setConfirmandoBorrado(false);
+        return;
+      }
+      onEliminado(`${ficha.nombre} fue eliminado del sistema.`);
     });
   }
 
@@ -418,22 +455,34 @@ function Ficha({
             className="mt-4 flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-gardner-azul-oscuro transition hover:bg-gardner-azul/10"
           >
             <span className="material-symbols-outlined text-[15px]">edit</span>
-            Editar área y estatus
+            Editar ficha
           </button>
         )}
 
         {editando && (
           <div className="mt-4 space-y-3 rounded-xl bg-gardner-neutro p-4">
             <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-gardner-gris/55">
+                Nombre completo
+              </span>
+              <input
+                autoFocus
+                value={borrador.nombre}
+                onChange={(e) => campo("nombre")(e.target.value)}
+                disabled={guardando}
+                className="rounded-lg border border-gardner-gris/25 bg-white px-2.5 py-1.5 text-sm text-gardner-gris disabled:opacity-60"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1">
               <span className="text-[10px] font-semibold uppercase tracking-wide text-gardner-gris/55">Área</span>
               {/* Lista cerrada, igual que en el alta: el área solo puede ser
                   una de las que definió Dirección. */}
               <select
-                autoFocus
-                value={areaBorrador}
-                onChange={(e) => setAreaBorrador(e.target.value)}
+                value={borrador.area}
+                onChange={(e) => campo("area")(e.target.value)}
                 disabled={guardando}
-                className="rounded-lg border border-gardner-azul bg-white px-2.5 py-1.5 text-sm text-gardner-gris outline-none ring-2 ring-gardner-azul/20 disabled:opacity-60"
+                className="rounded-lg border border-gardner-gris/25 bg-white px-2.5 py-1.5 text-sm text-gardner-gris disabled:opacity-60"
               >
                 <option value="">Selecciona un área</option>
                 {AREAS_ADMINISTRATIVAS.map((a) => (
@@ -444,29 +493,55 @@ function Ficha({
               </select>
             </label>
 
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-gardner-gris/55">
+                  Teléfono
+                </span>
+                <input
+                  value={borrador.telefono}
+                  onChange={(e) => campo("telefono")(e.target.value)}
+                  disabled={guardando}
+                  className="rounded-lg border border-gardner-gris/25 bg-white px-2.5 py-1.5 text-sm text-gardner-gris disabled:opacity-60"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-gardner-gris/55">
+                  Estatus
+                </span>
+                <select
+                  value={borrador.estatus}
+                  onChange={(e) => campo("estatus")(e.target.value)}
+                  disabled={guardando}
+                  className="rounded-lg border border-gardner-gris/25 bg-white px-2.5 py-1.5 text-sm text-gardner-gris disabled:opacity-60"
+                >
+                  <option value="Activo">Activo</option>
+                  <option value="Inactivo">Inactivo</option>
+                </select>
+              </label>
+            </div>
+
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-gardner-gris/55">
-                Estatus
-              </span>
-              <select
-                value={estatusBorrador}
-                onChange={(e) => setEstatusBorrador(e.target.value)}
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-gardner-gris/55">Correo</span>
+              <input
+                type="email"
+                value={borrador.correo}
+                onChange={(e) => campo("correo")(e.target.value)}
                 disabled={guardando}
                 className="rounded-lg border border-gardner-gris/25 bg-white px-2.5 py-1.5 text-sm text-gardner-gris disabled:opacity-60"
-              >
-                <option value="Activo">Activo</option>
-                <option value="Inactivo">Inactivo</option>
-              </select>
-              <span className="text-[11px] text-gardner-gris/55">
-                Marcar Inactivo conserva su historial; su QR deja de funcionar.
-              </span>
+              />
             </label>
+
+            <p className="text-[11px] leading-relaxed text-gardner-gris/55">
+              Marcar <strong>Inactivo</strong> conserva todo su historial de entradas y su QR deja de funcionar. Es
+              lo que conviene cuando alguien deja el instituto.
+            </p>
 
             {errorEdicion && (
               <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{errorEdicion}</p>
             )}
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={guardar}
                 disabled={guardando}
@@ -481,6 +556,37 @@ function Ficha({
               >
                 Cancelar
               </button>
+
+              {/* El borrado va aparte, al final y en rojo: el servidor además
+                  lo bloquea si la persona ya tiene registros de asistencia. */}
+              <span className="ml-auto">
+                {confirmandoBorrado ? (
+                  <span className="flex items-center gap-2">
+                    <span className="text-xs text-gardner-gris/70">¿Seguro?</span>
+                    <button
+                      onClick={eliminar}
+                      disabled={guardando}
+                      className="text-xs font-semibold text-red-600 hover:underline disabled:opacity-50"
+                    >
+                      Sí, eliminar
+                    </button>
+                    <button
+                      onClick={() => setConfirmandoBorrado(false)}
+                      className="text-xs text-gardner-gris/65 hover:underline"
+                    >
+                      No
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => setConfirmandoBorrado(true)}
+                    className="flex items-center gap-1 text-xs font-medium text-red-600 transition hover:underline"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">delete</span>
+                    Eliminar
+                  </button>
+                )}
+              </span>
             </div>
           </div>
         )}
