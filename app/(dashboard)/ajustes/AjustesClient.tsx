@@ -7,6 +7,8 @@ import CargarAlumnosClient from "./cargar-alumnos/CargarAlumnosClient";
 import CargarDocentesClient from "./cargar-docentes/CargarDocentesClient";
 import HorarioDocentesClient from "./horario-docentes/HorarioDocentesClient";
 import HorarioAdministrativoClient from "./horario-administrativo/HorarioAdministrativoClient";
+import HorariosAlumnosClient from "./horarios-alumnos/HorariosAlumnosClient";
+import DiasEspecialesClient from "./dias-especiales/DiasEspecialesClient";
 import ArchivoClient from "./ArchivoClient";
 import GruposAdminClient from "./grupos/GruposAdminClient";
 import CargarAdministrativosClient from "./cargar-administrativos/CargarAdministrativosClient";
@@ -62,7 +64,11 @@ export default function AjustesClient({ miPropioId }: { miPropioId: string }) {
         {tab === "grupos" && <GruposAdminClient />}
         {tab === "horarios" && (
           <div className="flex flex-col gap-8">
+            {/* Alumnos primero: es el horario que más se consulta y el que
+                afecta a los 356 alumnos, no a los 25 docentes. */}
+            <HorariosAlumnosClient />
             <HorarioDocentesClient />
+            <DiasEspecialesClient />
             <HorarioAdministrativoClient />
           </div>
         )}

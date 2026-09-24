@@ -7,6 +7,7 @@
 
 import { supaGet, supaInsert, supaUpdate, eqP, qs } from "./supabaseAdmin";
 import { esAdministrativo } from "./personal";
+import { horarioEspecialDeDocentes } from "./diasEspeciales";
 
 const OFFSET_HORAS_MX = -6;
 
@@ -217,19 +218,32 @@ async function procesarEscaneoDocente(docente: DocenteEscaneoRow, usuarioId: str
     }
 
     let estatusEntrada: "Puntual" | "Retardo" = "Puntual";
-    // Cada tipo de personal se mide contra su propio horario: oficina no tiene
-    // por qué abrir a la misma hora que las clases.
-    const horarios = await supaGet<HorarioRetardoRow>(
-      administrativo ? "horario_administrativo" : "horario_retardo_docentes",
-      "limit=1"
-    ).catch(() => [] as HorarioRetardoRow[]);
-    if (horarios.length > 0) {
-      const horario = horarios[0];
-      const minutosProgramados = minutosDesdeTexto(horario.hora_entrada);
-      const minutosTolerancia = horario.minutos_tolerancia || 0;
+
+    // Un día de CTE (o junta, o capacitación) los docentes entran a otra hora.
+    // Ese horario manda sobre el institucional. No aplica a administrativos:
+    // oficina abre igual ese día.
+    const especial = administrativo ? null : await horarioEspecialDeDocentes(fechaHoy);
+
+    if (especial) {
       const minutosReales = minutosDesdeMedianoche(ahoraMx);
-      if (minutosReales > minutosProgramados + minutosTolerancia) {
+      if (minutosReales > minutosDesdeTexto(especial.horaEntrada) + especial.minutosTolerancia) {
         estatusEntrada = "Retardo";
+      }
+    } else {
+      // Cada tipo de personal se mide contra su propio horario: oficina no tiene
+      // por qué abrir a la misma hora que las clases.
+      const horarios = await supaGet<HorarioRetardoRow>(
+        administrativo ? "horario_administrativo" : "horario_retardo_docentes",
+        "limit=1"
+      ).catch(() => [] as HorarioRetardoRow[]);
+      if (horarios.length > 0) {
+        const horario = horarios[0];
+        const minutosProgramados = minutosDesdeTexto(horario.hora_entrada);
+        const minutosTolerancia = horario.minutos_tolerancia || 0;
+        const minutosReales = minutosDesdeMedianoche(ahoraMx);
+        if (minutosReales > minutosProgramados + minutosTolerancia) {
+          estatusEntrada = "Retardo";
+        }
       }
     }
 
