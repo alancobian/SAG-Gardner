@@ -266,6 +266,14 @@ export default function ReportesClient({
         ))}
 
         <Link
+          href="/reportes/grupo"
+          className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-medium text-gardner-gris/80 transition hover:bg-gardner-azul/10 hover:text-gardner-azul-oscuro"
+        >
+          <span className="material-symbols-outlined text-[18px]">fact_check</span>
+          Balance por grupo
+        </Link>
+
+        <Link
           href="/reportes/ranking"
           className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-medium text-gardner-gris/80 transition hover:bg-gardner-azul/10 hover:text-gardner-azul-oscuro"
         >
