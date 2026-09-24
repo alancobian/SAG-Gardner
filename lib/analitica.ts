@@ -144,7 +144,10 @@ const red1 = (n: number) => Math.round(n * 10) / 10;
 function aFila(clave: string, a: Acumulador): FilaAnalitica {
   const posibles = a.puntual + a.retardo + a.falta + a.sinRegistro;
   const evaluables = a.puntual + a.retardo + a.falta;
-  const diasMedidos = a.alumnos.size ? Math.round(evaluables / a.alumnos.size) : 0;
+  // Sin redondear: es el divisor de los promedios. Redondear aquí desplazaría
+  // las tres cifras (con 2.4 días reales, dividir entre 2 las infla un 20%).
+  const diasMedidosExacto = a.alumnos.size ? evaluables / a.alumnos.size : 0;
+  const diasMedidos = Math.round(diasMedidosExacto);
   return {
     clave,
     etiqueta: a.etiqueta,
@@ -157,11 +160,15 @@ function aFila(clave: string, a: Acumulador): FilaAnalitica {
     posibles,
     // Días-alumno medidos ÷ alumnos = días medidos por alumno.
     diasMedidos,
-    promedio: diasMedidos
+    // Las tres cifras suman exactamente la matrícula del corte, que es lo que
+    // hace legible la gráfica: la barra completa son todos los alumnos.
+    // Menos de un día medido en promedio no da para un "promedio diario":
+    // sería una cifra construida sobre una fracción de día.
+    promedio: diasMedidos >= 1
       ? {
-          puntual: red1(a.puntual / diasMedidos),
-          retardo: red1(a.retardo / diasMedidos),
-          falta: red1(a.falta / diasMedidos),
+          puntual: red1(a.puntual / diasMedidosExacto),
+          retardo: red1(a.retardo / diasMedidosExacto),
+          falta: red1(a.falta / diasMedidosExacto),
         }
       : null,
     cobertura: posibles ? Math.round(((a.puntual + a.retardo) / posibles) * 100) : 0,

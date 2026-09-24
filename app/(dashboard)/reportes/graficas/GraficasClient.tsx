@@ -283,13 +283,26 @@ export default function GraficasClient({
                       </span>
                       <span className="text-gardner-gris/55"> de {datos!.diasLectivos}</span>
                     </td>
-                    <td className="px-4 py-3 text-center font-semibold text-estado-puntual">
-                      {num(f.puntual)}
-                    </td>
-                    <td className="px-4 py-3 text-center font-semibold text-estado-retardo">
-                      {num(f.retardo)}
-                    </td>
-                    <td className="px-4 py-3 text-center font-semibold text-red-600">{num(f.falta)}</td>
+                    {esPromedio && f.promedio === null ? (
+                      <td
+                        colSpan={3}
+                        className="px-4 py-3 text-center text-xs font-semibold text-gardner-gris/40"
+                      >
+                        sin días medidos
+                      </td>
+                    ) : (
+                      <>
+                        <td className="px-4 py-3 text-center font-semibold text-estado-puntual">
+                          {num(f.puntual)}
+                        </td>
+                        <td className="px-4 py-3 text-center font-semibold text-estado-retardo">
+                          {num(f.retardo)}
+                        </td>
+                        <td className="px-4 py-3 text-center font-semibold text-red-600">
+                          {num(f.falta)}
+                        </td>
+                      </>
+                    )}
                     {!esPromedio && (
                       <td className="px-4 py-3 text-center font-medium text-gardner-gris/50">
                         {num(f.sinRegistro)}
