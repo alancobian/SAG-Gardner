@@ -40,12 +40,21 @@ export default function GraficaBarras({
   hasta,
   diasLectivos,
   mostrarNivel = false,
+  series = SERIES,
+  referencia = (f) => f.posibles,
+  nota,
 }: {
   titulo: string;
   filas: FilaAnalitica[];
   desde: string;
   hasta: string;
   diasLectivos: number;
+  /** Qué series apilar. En promedio por día no aplica "sin registro". */
+  series?: typeof SERIES;
+  /** Valor que representa el 100% de la barra (días-alumno posibles, o alumnos). */
+  referencia?: (f: FilaAnalitica) => number;
+  /** Línea extra al pie, para explicar sobre qué está calculada la gráfica. */
+  nota?: string;
   /**
    * Agrega el nivel bajo el nombre. Imprescindible en los cortes por grado y
    * grupo: "1° grado A" existe en Primaria Y en Secundaria, y sin el nivel las
@@ -58,14 +67,15 @@ export default function GraficaBarras({
   const ALTO_BARRA = 34;
   const ESPACIO = 12;
   const MARGEN_IZQ = 170;
-  const MARGEN_DER = 76;
-  const TOPE = 96;
+  // Ancho suficiente para el % y, a su derecha, los días medidos de esa barra.
+  const MARGEN_DER = 156;
+  const TOPE = 114;
   const PIE = 62;
   const ANCHO = 900;
   const anchoUtil = ANCHO - MARGEN_IZQ - MARGEN_DER;
   const alto = TOPE + filas.length * (ALTO_BARRA + ESPACIO) + PIE;
 
-  const maximo = Math.max(1, ...filas.map((f) => f.posibles));
+  const maximo = Math.max(1, ...filas.map(referencia));
 
   function descargarPng() {
     const svg = svgRef.current;
@@ -120,11 +130,13 @@ export default function GraficaBarras({
             {titulo}
           </text>
           <text x="24" y="56" fontFamily="Arial, sans-serif" fontSize="13" fill={GRIS} opacity="0.8">
-            {`Del ${formatoFecha(desde)} al ${formatoFecha(hasta)} · ${diasLectivos} días lectivos`}
+            {`Del ${formatoFecha(desde)} al ${formatoFecha(hasta)} · ${diasLectivos} ${
+              diasLectivos === 1 ? "día de clase" : "días de clase"
+            } en el periodo`}
           </text>
 
           {/* Leyenda */}
-          {SERIES.map((s, i) => (
+          {series.map((s, i) => (
             <g key={s.clave} transform={`translate(${24 + i * 150}, 72)`}>
               <rect x="0" y="0" width="12" height="12" rx="3" fill={s.color} />
               <text x="18" y="11" fontFamily="Arial, sans-serif" fontSize="12" fill={GRIS}>
@@ -132,6 +144,30 @@ export default function GraficaBarras({
               </text>
             </g>
           ))}
+
+          {/* Encabezados de la columna derecha, para que el PNG se explique solo. */}
+          <text
+            x={ANCHO - MARGEN_DER + 8}
+            y={TOPE - 12}
+            fontFamily="Arial, sans-serif"
+            fontSize="10"
+            fontWeight="700"
+            fill={GRIS}
+            opacity="0.6"
+          >
+            ASISTENCIA
+          </text>
+          <text
+            x={ANCHO - MARGEN_DER + 58}
+            y={TOPE - 12}
+            fontFamily="Arial, sans-serif"
+            fontSize="10"
+            fontWeight="700"
+            fill={GRIS}
+            opacity="0.6"
+          >
+            DÍAS MEDIDOS
+          </text>
 
           {filas.map((fila, i) => {
             const y = TOPE + i * (ALTO_BARRA + ESPACIO);
@@ -163,7 +199,7 @@ export default function GraficaBarras({
                     {fila.nivelAcademico}
                   </text>
                 )}
-                {SERIES.map((s) => {
+                {series.map((s) => {
                   const valor = fila[s.clave];
                   const ancho = escala(valor);
                   const seg = (
@@ -184,6 +220,19 @@ export default function GraficaBarras({
                 >
                   {fila.porcentajeAsistencia === null ? "—" : `${fila.porcentajeAsistencia}%`}
                 </text>
+                {/* Sobre cuántos días de clase está calculado ese porcentaje.
+                    Sin esta referencia un 95% de 3 días parece igual de sólido
+                    que un 95% de 23. */}
+                <text
+                  x={ANCHO - MARGEN_DER + 58}
+                  y={y + ALTO_BARRA / 2 + 4}
+                  fontFamily="Arial, sans-serif"
+                  fontSize="11"
+                  fill={GRIS}
+                  opacity="0.75"
+                >
+                  {`${fila.diasMedidos} de ${diasLectivos} días`}
+                </text>
               </g>
             );
           })}
@@ -196,7 +245,7 @@ export default function GraficaBarras({
             fill={GRIS}
             opacity="0.7"
           >
-            El porcentaje es sobre los días medidos, no sobre el periodo completo.
+            {nota ?? "El porcentaje es sobre los días medidos, no sobre el periodo completo."}
           </text>
           <text
             x="24"

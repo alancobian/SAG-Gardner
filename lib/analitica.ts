@@ -57,6 +57,27 @@ export type FilaAnalitica = {
   sinRegistro: number;
   /** alumnos × días lectivos. Suma de las cuatro series. */
   posibles: number;
+  /**
+   * Días de clase que este corte sí alcanzó a medir, en promedio por alumno.
+   *
+   * Para un grupo es exacto (todos sus alumnos comparten los mismos días
+   * medidos). Para un grado, nivel o el total es un promedio, porque cada
+   * grupo pudo haber medido días distintos.
+   *
+   * Es la referencia que hace legible la gráfica: "18 de 23" dice de inmediato
+   * cuántos días de clase respaldan realmente esos números.
+   */
+  diasMedidos: number;
+  /**
+   * Promedio de alumnos por día de clase medido. Responde directamente a
+   * "de los 17 días, ¿cuántos llegaron a tiempo, cuántos tarde y cuántos
+   * faltaron?".
+   *
+   * El divisor son los días MEDIDOS, no los días lectivos: promediar sobre
+   * días en que nadie escaneó hundiría artificialmente las tres cifras.
+   * Cuando no hay días medidos, los tres son null: no hay nada que promediar.
+   */
+  promedio: { puntual: number; retardo: number; falta: number } | null;
   /** (puntual + retardo) / posibles, en porcentaje. */
   cobertura: number;
   /**
@@ -118,9 +139,12 @@ function nuevoAcumulador(etiqueta: string, nivel: string): Acumulador {
   };
 }
 
+const red1 = (n: number) => Math.round(n * 10) / 10;
+
 function aFila(clave: string, a: Acumulador): FilaAnalitica {
   const posibles = a.puntual + a.retardo + a.falta + a.sinRegistro;
   const evaluables = a.puntual + a.retardo + a.falta;
+  const diasMedidos = a.alumnos.size ? Math.round(evaluables / a.alumnos.size) : 0;
   return {
     clave,
     etiqueta: a.etiqueta,
@@ -131,6 +155,15 @@ function aFila(clave: string, a: Acumulador): FilaAnalitica {
     falta: a.falta,
     sinRegistro: a.sinRegistro,
     posibles,
+    // Días-alumno medidos ÷ alumnos = días medidos por alumno.
+    diasMedidos,
+    promedio: diasMedidos
+      ? {
+          puntual: red1(a.puntual / diasMedidos),
+          retardo: red1(a.retardo / diasMedidos),
+          falta: red1(a.falta / diasMedidos),
+        }
+      : null,
     cobertura: posibles ? Math.round(((a.puntual + a.retardo) / posibles) * 100) : 0,
     porcentajeAsistencia: evaluables ? Math.round(((a.puntual + a.retardo) / evaluables) * 100) : null,
   };

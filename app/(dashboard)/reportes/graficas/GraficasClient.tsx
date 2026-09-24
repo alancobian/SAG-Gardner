@@ -5,9 +5,34 @@
 // PNG lista para pegar en el deck.
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { COBERTURA_MINIMA_DEL_DIA, type Analitica } from "@/lib/analitica";
+import { COBERTURA_MINIMA_DEL_DIA, type Analitica, type FilaAnalitica } from "@/lib/analitica";
 import { obtenerAnaliticaAction } from "./actions";
 import GraficaBarras, { SERIES } from "./GraficaBarras";
+
+// En promedio por día no existe "sin registro": esos días quedaron fuera del
+// divisor, no aportan una barra gris.
+const SERIES_PROMEDIO = SERIES.filter((s) => s.clave !== "sinRegistro");
+
+const MODOS = [
+  { clave: "totales" as const, etiqueta: "Totales del periodo" },
+  { clave: "promedio" as const, etiqueta: "Promedio por día" },
+];
+
+/**
+ * Convierte una fila de totales acumulados en una fila de promedios diarios,
+ * para poder reutilizar la misma gráfica y la misma tabla.
+ */
+function aPromedio(f: FilaAnalitica): FilaAnalitica {
+  return {
+    ...f,
+    puntual: f.promedio?.puntual ?? 0,
+    retardo: f.promedio?.retardo ?? 0,
+    falta: f.promedio?.falta ?? 0,
+    sinRegistro: 0,
+  };
+}
+
+const num = (n: number) => n.toLocaleString("es-MX", { maximumFractionDigits: 1 });
 
 const CORTES = [
   { clave: "porNivel" as const, etiqueta: "Por nivel", icono: "school" },
@@ -26,6 +51,7 @@ export default function GraficasClient({
   const [hasta, setHasta] = useState(hastaInicial);
   const [datos, setDatos] = useState<Analitica | null>(null);
   const [corte, setCorte] = useState<(typeof CORTES)[number]["clave"]>("porNivel");
+  const [modo, setModo] = useState<(typeof MODOS)[number]["clave"]>("totales");
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [, startTransition] = useTransition();
@@ -48,7 +74,9 @@ export default function GraficasClient({
     cargar(desdeInicial, hastaInicial);
   }, [cargar, desdeInicial, hastaInicial]);
 
-  const filas = datos ? datos[corte] : [];
+  const esPromedio = modo === "promedio";
+  const base = datos ? datos[corte] : [];
+  const filas = esPromedio ? base.map(aPromedio) : base;
   const t = datos?.totales;
 
   return (
@@ -96,15 +124,33 @@ export default function GraficasClient({
       {t && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {[
-            { etiqueta: "Días lectivos", valor: datos!.diasLectivos, color: "text-gardner-azul" },
-            { etiqueta: "Puntuales", valor: t.puntual.toLocaleString("es-MX"), color: "text-estado-puntual" },
-            { etiqueta: "Retardos", valor: t.retardo.toLocaleString("es-MX"), color: "text-estado-retardo" },
-            { etiqueta: "Faltas", valor: t.falta.toLocaleString("es-MX"), color: "text-red-600" },
+            { etiqueta: "Días de clase", valor: datos!.diasLectivos, color: "text-gardner-azul" },
             {
-              etiqueta: "Sin registro",
-              valor: t.sinRegistro.toLocaleString("es-MX"),
-              color: "text-gardner-gris/60",
+              etiqueta: esPromedio ? "Puntuales por día" : "Puntuales",
+              valor: num(esPromedio ? t.promedio?.puntual ?? 0 : t.puntual),
+              color: "text-estado-puntual",
             },
+            {
+              etiqueta: esPromedio ? "Retardos por día" : "Retardos",
+              valor: num(esPromedio ? t.promedio?.retardo ?? 0 : t.retardo),
+              color: "text-estado-retardo",
+            },
+            {
+              etiqueta: esPromedio ? "Faltas por día" : "Faltas",
+              valor: num(esPromedio ? t.promedio?.falta ?? 0 : t.falta),
+              color: "text-red-600",
+            },
+            esPromedio
+              ? {
+                  etiqueta: "Días medidos",
+                  valor: `${t.diasMedidos} de ${datos!.diasLectivos}`,
+                  color: "text-gardner-gris/70",
+                }
+              : {
+                  etiqueta: "Sin registro",
+                  valor: num(t.sinRegistro),
+                  color: "text-gardner-gris/60",
+                },
           ].map((c) => (
             <div key={c.etiqueta} className="rounded-2xl bg-white p-4 shadow-sm">
               <p className={`text-2xl font-bold ${c.color}`}>{c.valor}</p>
@@ -125,6 +171,29 @@ export default function GraficasClient({
           </p>
         </div>
       )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-1 rounded-2xl bg-white p-1.5 shadow-sm">
+          {MODOS.map((m) => (
+            <button
+              key={m.clave}
+              onClick={() => setModo(m.clave)}
+              className={`rounded-xl px-4 py-2.5 text-sm font-medium transition ${
+                modo === m.clave
+                  ? "bg-gardner-gris text-white shadow-sm"
+                  : "text-gardner-gris/80 hover:bg-gardner-gris/10"
+              }`}
+            >
+              {m.etiqueta}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-gardner-gris/65">
+          {esPromedio
+            ? "Cuántos alumnos, en promedio, llegaron a tiempo, llegaron tarde o faltaron en un día de clase medido."
+            : "Suma de días-alumno de todo el periodo."}
+        </p>
+      </div>
 
       <div className="flex gap-1 self-start rounded-2xl bg-white p-1.5 shadow-sm">
         {CORTES.map((c) => (
@@ -152,23 +221,33 @@ export default function GraficasClient({
       ) : (
         <>
           <GraficaBarras
-            titulo={`Asistencia ${CORTES.find((c) => c.clave === corte)!.etiqueta.toLowerCase()}`}
+            titulo={`${esPromedio ? "Promedio diario de alumnos" : "Asistencia"} ${CORTES.find(
+              (c) => c.clave === corte
+            )!.etiqueta.toLowerCase()}`}
             filas={filas}
             desde={datos.desde}
             hasta={datos.hasta}
             diasLectivos={datos.diasLectivos}
             mostrarNivel={corte !== "porNivel"}
+            series={esPromedio ? SERIES_PROMEDIO : SERIES}
+            referencia={esPromedio ? (f) => f.alumnos : (f) => f.posibles}
+            nota={
+              esPromedio
+                ? "Alumnos por día de clase medido. La barra completa equivale a la matrícula del corte."
+                : undefined
+            }
           />
 
           <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="w-full min-w-[760px] text-sm">
               <thead className="border-b border-gardner-gris/10 bg-gardner-neutro text-xs font-semibold text-gardner-gris/70">
                 <tr>
                   <th className="px-4 py-3 text-left">
                     {CORTES.find((c) => c.clave === corte)!.etiqueta.replace("Por ", "")}
                   </th>
                   <th className="px-4 py-3 text-center">Alumnos</th>
-                  {SERIES.map((s) => (
+                  <th className="px-4 py-3 text-center">Días medidos</th>
+                  {(esPromedio ? SERIES_PROMEDIO : SERIES).map((s) => (
                     <th key={s.clave} className="px-4 py-3 text-center">
                       <span className="inline-flex items-center gap-1.5">
                         <span
@@ -192,10 +271,30 @@ export default function GraficasClient({
                       )}
                     </td>
                     <td className="px-4 py-3 text-center text-gardner-gris/75">{f.alumnos}</td>
-                    <td className="px-4 py-3 text-center font-semibold text-estado-puntual">{f.puntual}</td>
-                    <td className="px-4 py-3 text-center font-semibold text-estado-retardo">{f.retardo}</td>
-                    <td className="px-4 py-3 text-center font-semibold text-red-600">{f.falta}</td>
-                    <td className="px-4 py-3 text-center font-medium text-gardner-gris/50">{f.sinRegistro}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span
+                        className={`font-semibold ${
+                          f.diasMedidos === datos!.diasLectivos
+                            ? "text-gardner-gris"
+                            : "text-estado-retardo"
+                        }`}
+                      >
+                        {f.diasMedidos}
+                      </span>
+                      <span className="text-gardner-gris/55"> de {datos!.diasLectivos}</span>
+                    </td>
+                    <td className="px-4 py-3 text-center font-semibold text-estado-puntual">
+                      {num(f.puntual)}
+                    </td>
+                    <td className="px-4 py-3 text-center font-semibold text-estado-retardo">
+                      {num(f.retardo)}
+                    </td>
+                    <td className="px-4 py-3 text-center font-semibold text-red-600">{num(f.falta)}</td>
+                    {!esPromedio && (
+                      <td className="px-4 py-3 text-center font-medium text-gardner-gris/50">
+                        {num(f.sinRegistro)}
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-center">
                       {f.porcentajeAsistencia === null ? (
                         <span className="text-xs font-semibold text-gardner-gris/40">sin datos</span>
