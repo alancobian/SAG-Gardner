@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import type { AlumnoAcumulado, GrupoCobertura, ReporteAcumulado } from "@/lib/acumulados";
 import { COBERTURA_CONFIABLE } from "@/lib/acumulados";
 import { obtenerReporteAcumuladoAction } from "./actions";
+import BalanceNiveles, { calcularBalance, balancePorNivel } from "./BalanceNiveles";
 
 /** A partir de aquí un alumno se considera en riesgo. */
 const UMBRAL_RIESGO = 85;
@@ -139,27 +140,23 @@ export default function ReportesClient({
     });
   }, [reporte, nivel, grupo, soloRiesgo, termino, orden, asc]);
 
-  // Los totales se calculan sobre lo filtrado, no sobre todo: si alguien mira
-  // solo Primaria, los números de arriba tienen que ser los de Primaria.
-  const resumen = useMemo(() => {
-    if (!filtrados.length) return null;
-    // El denominador global suma los días evaluables de cada alumno, no
-    // alumnos × días del rango: si un grupo entró tarde al sistema, sus días
-    // previos no existen para nadie.
-    const posibles = filtrados.reduce((s, a) => s + a.diasEvaluados, 0);
-    const asistencias = filtrados.reduce((s, a) => s + a.asistencias, 0);
-    return {
-      alumnos: filtrados.length,
-      dias: reporte?.diasLectivos ?? 0,
-      asistencia: posibles ? Math.round((asistencias / posibles) * 100) : 0,
-      retardos: filtrados.reduce((s, a) => s + a.retardos, 0),
-      faltas: filtrados.reduce((s, a) => s + a.ausenciasSinJustificar, 0),
-      enRiesgo: filtrados.filter(
-        (a) => a.porcentajeAsistencia !== null && a.porcentajeAsistencia < UMBRAL_RIESGO
-      ).length,
-      sinDatos: filtrados.filter((a) => a.porcentajeAsistencia === null).length,
-    };
-  }, [filtrados, reporte]);
+  // El balance de arriba es SIEMPRE del instituto completo y de cada nivel:
+  // es el panorama con el que se abre la pantalla, no depende de los filtros de
+  // abajo. Filtrarlo haría que el encabezado cambiara de significado según lo
+  // que uno esté buscando.
+  const balanceInstituto = useMemo(
+    () => calcularBalance("Instituto", reporte?.alumnos ?? [], reporte?.diasLectivos ?? 0),
+    [reporte]
+  );
+  const balancesNivel = useMemo(
+    () => balancePorNivel(reporte?.alumnos ?? [], reporte?.diasLectivos ?? 0),
+    [reporte]
+  );
+
+  // La tabla por alumno ya no vuelca los 356 alumnos de entrada: eso no es un
+  // reporte, es un directorio. Aparece cuando el usuario busca un nombre, elige
+  // un grupo o pide ver solo a los de riesgo.
+  const hayBusqueda = termino.trim().length >= 2 || grupo !== "" || soloRiesgo;
 
   const gruposCobertura = useMemo(() => {
     let lista = reporte?.grupos ?? [];
@@ -244,10 +241,23 @@ export default function ReportesClient({
         <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>
       )}
 
+      {!cargando && reporte && reporte.diasLectivos > 0 && (
+        <BalanceNiveles
+          instituto={balanceInstituto}
+          niveles={balancesNivel}
+          diasLectivos={reporte.diasLectivos}
+          nivelActivo={nivel}
+          onElegirNivel={(n) => {
+            setNivel(n);
+            setGrupo("");
+          }}
+        />
+      )}
+
       <div className="flex gap-1 self-start rounded-2xl bg-white p-1.5 shadow-sm">
         {(
           [
-            { clave: "alumnos", etiqueta: "Por alumno", icono: "person" },
+            { clave: "alumnos", etiqueta: "Buscar alumno", icono: "search" },
             { clave: "cobertura", etiqueta: "Cobertura por grupo", icono: "monitoring" },
           ] as const
         ).map((t) => (
@@ -298,7 +308,7 @@ export default function ReportesClient({
         </Link>
       </div>
 
-      {vista === "alumnos" && alumnosPocoConfiables > 0 && (
+      {vista === "alumnos" && hayBusqueda && alumnosPocoConfiables > 0 && (
         <div className="flex items-start gap-3 rounded-2xl border border-estado-retardo/30 bg-estado-retardo/10 px-4 py-3">
           <span className="material-symbols-outlined mt-0.5 text-[20px] text-estado-retardo">info</span>
           <p className="text-sm font-medium text-gardner-gris/85">
@@ -350,26 +360,6 @@ export default function ReportesClient({
         </div>
       )}
 
-      {vista === "alumnos" && resumen && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {[
-            { etiqueta: "Días lectivos", valor: resumen.dias, icono: "event_available", color: "text-gardner-azul" },
-            { etiqueta: "Alumnos", valor: resumen.alumnos, icono: "groups", color: "text-gardner-azul" },
-            { etiqueta: "Asistencia", valor: `${resumen.asistencia}%`, icono: "check_circle", color: colorAsistencia(resumen.asistencia) },
-            { etiqueta: "Retardos", valor: resumen.retardos, icono: "schedule", color: "text-estado-retardo" },
-            { etiqueta: "En riesgo", valor: resumen.enRiesgo, icono: "warning", color: resumen.enRiesgo ? "text-red-600" : "text-estado-puntual" },
-          ].map((c) => (
-            <div key={c.etiqueta} className="rounded-2xl bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-2">
-                <span className={`material-symbols-outlined text-[18px] ${c.color}`}>{c.icono}</span>
-                <span className="text-xs font-semibold text-gardner-gris/70">{c.etiqueta}</span>
-              </div>
-              <p className={`mt-1 text-2xl font-bold ${c.color}`}>{c.valor}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
       <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-white p-3 shadow-sm">
         {vista === "alumnos" && (
           <div className="relative min-w-[200px] flex-1">
@@ -379,7 +369,7 @@ export default function ReportesClient({
             <input
               value={termino}
               onChange={(e) => setTermino(e.target.value)}
-              placeholder="Buscar alumno…"
+              placeholder="Buscar por nombre del alumno…"
               className="w-full rounded-xl border border-gardner-gris/20 py-2 pl-10 pr-3 text-sm font-medium text-gardner-gris"
             />
           </div>
@@ -460,9 +450,18 @@ export default function ReportesClient({
               </tbody>
             </table>
           </div>
+        ) : !hayBusqueda ? (
+          <div className="flex flex-col items-center gap-2 px-4 py-14 text-center">
+            <span className="material-symbols-outlined text-[32px] text-gardner-gris/30">search</span>
+            <p className="text-sm font-semibold text-gardner-gris/70">Busca a un alumno</p>
+            <p className="max-w-sm text-xs text-gardner-gris/55">
+              Escribe su nombre arriba, elige un grupo, o activa &ldquo;Solo en riesgo&rdquo; para ver
+              de una vez a todos los que van bajos de asistencia.
+            </p>
+          </div>
         ) : filtrados.length === 0 ? (
           <p className="px-4 py-10 text-center text-sm font-medium text-gardner-gris/60">
-            Ningún alumno coincide con los filtros.
+            Ningún alumno coincide con la búsqueda.
           </p>
         ) : (
           <div className="overflow-x-auto">
