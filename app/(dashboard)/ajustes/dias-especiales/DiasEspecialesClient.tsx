@@ -10,7 +10,18 @@ import {
   quitarDiaEspecialAction,
 } from "./actions";
 
-const MOTIVOS = ["CTE", "Junta", "Capacitación", "Consejo Técnico", "Evento"];
+// El valor es lo que se guarda en calendario_escolar.tipo_dia; la etiqueta es
+// lo que se lee en pantalla. "CTE" se guarda así porque es como ya están
+// cargados los días en el calendario, pero se muestra con su nombre completo.
+const MOTIVOS = [
+  { valor: "CTE", etiqueta: "CTE — Consejo Técnico Escolar" },
+  { valor: "Junta", etiqueta: "Junta" },
+  { valor: "Capacitación", etiqueta: "Capacitación" },
+  { valor: "Evento", etiqueta: "Evento" },
+];
+
+const etiquetaMotivo = (valor: string) =>
+  MOTIVOS.find((m) => m.valor === valor)?.etiqueta ?? valor;
 
 const fechaLarga = (f: string) =>
   new Date(`${f}T12:00:00`).toLocaleDateString("es-MX", {
@@ -23,7 +34,7 @@ const fechaLarga = (f: string) =>
 export default function DiasEspecialesClient() {
   const [dias, setDias] = useState<DiaEspecial[]>([]);
   const [fecha, setFecha] = useState("");
-  const [tipoDia, setTipoDia] = useState(MOTIVOS[0]);
+  const [tipoDia, setTipoDia] = useState(MOTIVOS[0].valor);
   const [horaEntrada, setHoraEntrada] = useState("08:00");
   const [tolerancia, setTolerancia] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -101,8 +112,8 @@ export default function DiasEspecialesClient() {
             className="mt-1 rounded-xl border border-gardner-gris/20 bg-white px-3 py-2 text-sm font-medium text-gardner-gris"
           >
             {MOTIVOS.map((m) => (
-              <option key={m} value={m}>
-                {m}
+              <option key={m.valor} value={m.valor}>
+                {m.etiqueta}
               </option>
             ))}
           </select>
@@ -151,7 +162,7 @@ export default function DiasEspecialesClient() {
             >
               <div>
                 <p className="text-sm font-semibold text-gardner-gris">
-                  {d.tipoDia} · {fechaLarga(d.fecha)}
+                  {etiquetaMotivo(d.tipoDia)} · {fechaLarga(d.fecha)}
                 </p>
                 <p className="text-xs text-gardner-gris/60">
                   Entrada de docentes {d.horaEntrada}
