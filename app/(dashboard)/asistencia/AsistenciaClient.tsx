@@ -312,6 +312,67 @@ function FichaAlumnoDetalle({
   );
 }
 
+
+/**
+ * El estatus ES el control: la palabra que ya estaba en el renglón se vuelve
+ * clicable, en vez de agregar un botón aparte.
+ *
+ * Corregir un retardo es la excepción, no la rutina, y esta pantalla existe
+ * para LEER la asistencia. Un control permanente en cada renglón le daría a una
+ * acción rara el mismo peso visual que al dato.
+ *
+ * EL DESENFOQUE NO ES ADORNO
+ *
+ * Al cambiar "Retardo" por "Puntual" se ven, por un instante, las dos palabras
+ * encimadas: se lee como dos objetos distintos intercambiándose. Un blur corto
+ * durante el cruce las funde y el ojo lo percibe como una sola palabra que se
+ * transforma. Es el único momento en que algo se mueve aquí, y dura 140 ms.
+ */
+function BotonEstatus({
+  estatus,
+  guardando,
+  onCambiar,
+}: {
+  estatus: "Puntual" | "Retardo";
+  guardando: boolean;
+  onCambiar: () => void;
+}) {
+  // Se guarda aparte del estatus real para poder desenfocar ANTES de que el
+  // texto cambie, no después.
+  const [transicion, setTransicion] = useState(false);
+
+  useEffect(() => {
+    if (!transicion) return;
+    const t = setTimeout(() => setTransicion(false), 140);
+    return () => clearTimeout(t);
+  }, [transicion, estatus]);
+
+  return (
+    <button
+      onClick={() => {
+        setTransicion(true);
+        onCambiar();
+      }}
+      disabled={guardando}
+      title={`Marcar como ${estatus === "Puntual" ? "Retardo" : "Puntual"}`}
+      className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-sm font-semibold transition-[background-color,transform] duration-150 ease-out hover:bg-gardner-gris/8 motion-safe:active:scale-[0.96] disabled:opacity-60 ${
+        ESTADO_TEXTO[estatus] ?? "text-gardner-gris/50"
+      }`}
+    >
+      <span className="material-symbols-outlined text-[14px] opacity-0 transition-opacity duration-150 group-hover/fila:opacity-55">
+        swap_horiz
+      </span>
+      <span
+        className={`transition-[filter,opacity] duration-150 ease-out ${
+          transicion ? "opacity-45 blur-[2.5px]" : "opacity-100 blur-0"
+        }`}
+      >
+        {estatus}
+      </span>
+    </button>
+  );
+}
+
 function PanelAlumnos({
   grupo,
   fecha,
@@ -399,7 +460,7 @@ function PanelAlumnos({
                 return (
                   <div
                     key={a.id}
-                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 transition hover:bg-gardner-azul/5"
+                    className="group/fila flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 transition-colors duration-150 hover:bg-gardner-azul/5"
                   >
                     {/* El nombre abre la ficha; el estatus se corrige aparte.
                         Son dos botones hermanos y no uno dentro de otro. */}
@@ -442,9 +503,21 @@ function PanelAlumnos({
                     </button>
 
                     <div className="flex shrink-0 flex-col items-end gap-0.5">
-                      <span className={`text-sm font-semibold ${ESTADO_TEXTO[estatus] ?? "text-gardner-gris/50"}`}>
-                        {estatus}
-                      </span>
+                      {corregible ? (
+                        <BotonEstatus
+                          estatus={estatus as "Puntual" | "Retardo"}
+                          guardando={guardando === a.id}
+                          onCambiar={() => cambiarEstatus(a.id, contrario as "Puntual" | "Retardo")}
+                        />
+                      ) : (
+                        <span
+                          className={`px-2.5 py-1 text-sm font-semibold ${
+                            ESTADO_TEXTO[estatus] ?? "text-gardner-gris/50"
+                          }`}
+                        >
+                          {estatus}
+                        </span>
+                      )}
                       {/* Una falta solo es "sin justificar" si nadie registro un
                           justificante que cubra el dia (ver justificantes). */}
                       {estatus === "Ausente" && (
@@ -457,15 +530,9 @@ function PanelAlumnos({
                         </span>
                       )}
                       {corregible && (
-                        <button
-                          onClick={() => cambiarEstatus(a.id, contrario as "Puntual" | "Retardo")}
-                          disabled={guardando === a.id}
-                          title={`Marcar como ${contrario}`}
-                          className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-gardner-azul-oscuro transition hover:bg-gardner-azul/10 disabled:opacity-50"
-                        >
-                          <span className="material-symbols-outlined text-[13px]">swap_horiz</span>
-                          {guardando === a.id ? "Guardando…" : `Pasar a ${contrario}`}
-                        </button>
+                        <span className="pointer-events-none text-[10px] text-gardner-gris/45 opacity-0 transition-opacity duration-150 group-hover/fila:opacity-100">
+                          clic para cambiar
+                        </span>
                       )}
                     </div>
                   </div>
