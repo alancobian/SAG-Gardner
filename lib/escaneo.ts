@@ -27,7 +27,7 @@ function esEscaneoDuplicado(horaEntradaTexto: string, ahoraMx: Date): boolean {
   return segundosTranscurridos < UMBRAL_DUPLICADO_SEGUNDOS;
 }
 
-function horaLocalMx(): Date {
+export function horaLocalMx(): Date {
   const ahora = new Date();
   return new Date(ahora.getTime() + OFFSET_HORAS_MX * 60 * 60 * 1000);
 }

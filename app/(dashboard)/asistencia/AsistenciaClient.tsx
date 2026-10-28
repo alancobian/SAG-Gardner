@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { GrupoReporte, ReporteDiario } from "@/lib/reportes";
 import type { FichaAlumno } from "@/lib/alumnos";
 import { obtenerFichaAlumnoAction } from "../grupos-alumnos/actions";
+import { corregirEstatusAction } from "./actions";
 
 const ESTADO_ESTILOS: Record<string, string> = {
   Puntual: "bg-estado-puntual/10 text-estado-puntual",
@@ -313,14 +314,31 @@ function FichaAlumnoDetalle({
 
 function PanelAlumnos({
   grupo,
+  fecha,
   puedeEditar,
   onCerrar,
 }: {
   grupo: GrupoReporte;
+  /** Fecha del reporte abierto: la corrección aplica a ese día, no a hoy. */
+  fecha: string;
   puedeEditar: boolean;
   onCerrar: () => void;
 }) {
   const [alumnoSeleccionado, setAlumnoSeleccionado] = useState<string | null>(null);
+  // El estatus corregido se guarda aquí para que el panel reaccione de
+  // inmediato; el revalidatePath del server action refresca el resto.
+  const [corregidos, setCorregidos] = useState<Record<string, string>>({});
+  const [guardando, setGuardando] = useState<string | null>(null);
+  const [errorCorreccion, setErrorCorreccion] = useState<string | null>(null);
+
+  async function cambiarEstatus(alumnoId: string, nuevo: "Puntual" | "Retardo") {
+    setGuardando(alumnoId);
+    setErrorCorreccion(null);
+    const res = await corregirEstatusAction(alumnoId, fecha, nuevo);
+    if (res.ok) setCorregidos((prev) => ({ ...prev, [alumnoId]: res.data.estatus }));
+    else setErrorCorreccion(res.error);
+    setGuardando(null);
+  }
 
   return (
     <div className="fixed inset-0 z-30 flex justify-end bg-gardner-gris/40 backdrop-blur-[1px]" onClick={onCerrar}>
@@ -365,28 +383,43 @@ function PanelAlumnos({
             </div>
 
             <div className="flex-1 overflow-y-auto p-4">
+              {errorCorreccion && (
+                <p className="mb-2 rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                  {errorCorreccion}
+                </p>
+              )}
               {grupo.alumnos.map((a) => {
                 const hora = formatoHora(a.horaEntrada);
+                const estatus = corregidos[a.id] ?? a.estatus;
+                // Solo se corrige lo que nació de un escaneo real: un "Ausente"
+                // no tiene registro que editar (ver lib/correccionEstatus.ts).
+                const corregible =
+                  puedeEditar && (estatus === "Puntual" || estatus === "Retardo");
+                const contrario = estatus === "Puntual" ? "Retardo" : "Puntual";
                 return (
-                  <button
+                  <div
                     key={a.id}
-                    onClick={() => setAlumnoSeleccionado(a.id)}
-                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-gardner-azul/5"
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 transition hover:bg-gardner-azul/5"
                   >
-                    <div className="flex items-center gap-3">
+                    {/* El nombre abre la ficha; el estatus se corrige aparte.
+                        Son dos botones hermanos y no uno dentro de otro. */}
+                    <button
+                      onClick={() => setAlumnoSeleccionado(a.id)}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    >
                       {a.foto ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={a.foto}
                           alt={a.nombre}
                           className={`h-10 w-10 shrink-0 rounded-full object-cover ring-2 ring-offset-2 ${
-                            ESTADO_ANILLO[a.estatus] ?? "ring-transparent"
+                            ESTADO_ANILLO[estatus] ?? "ring-transparent"
                           }`}
                         />
                       ) : (
                         <div
                           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gardner-azul text-sm font-bold text-white ring-2 ring-offset-2 ${
-                            ESTADO_ANILLO[a.estatus] ?? "ring-transparent"
+                            ESTADO_ANILLO[estatus] ?? "ring-transparent"
                           }`}
                         >
                           {iniciales(a.nombre)}
@@ -406,14 +439,15 @@ function PanelAlumnos({
                           </p>
                         )}
                       </div>
-                    </div>
+                    </button>
+
                     <div className="flex shrink-0 flex-col items-end gap-0.5">
-                      <span className={`text-sm font-semibold ${ESTADO_TEXTO[a.estatus] ?? "text-gardner-gris/50"}`}>
-                        {a.estatus}
+                      <span className={`text-sm font-semibold ${ESTADO_TEXTO[estatus] ?? "text-gardner-gris/50"}`}>
+                        {estatus}
                       </span>
                       {/* Una falta solo es "sin justificar" si nadie registro un
                           justificante que cubra el dia (ver justificantes). */}
-                      {a.estatus === "Ausente" && (
+                      {estatus === "Ausente" && (
                         <span
                           className={`text-[10px] font-semibold uppercase tracking-wide ${
                             a.justificado ? "text-estado-puntual" : "text-gardner-gris/40"
@@ -422,8 +456,19 @@ function PanelAlumnos({
                           {a.justificado ? "Justificada" : "Sin justificar"}
                         </span>
                       )}
+                      {corregible && (
+                        <button
+                          onClick={() => cambiarEstatus(a.id, contrario as "Puntual" | "Retardo")}
+                          disabled={guardando === a.id}
+                          title={`Marcar como ${contrario}`}
+                          className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-gardner-azul-oscuro transition hover:bg-gardner-azul/10 disabled:opacity-50"
+                        >
+                          <span className="material-symbols-outlined text-[13px]">swap_horiz</span>
+                          {guardando === a.id ? "Guardando…" : `Pasar a ${contrario}`}
+                        </button>
+                      )}
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -611,7 +656,12 @@ export default function AsistenciaClient({ reporte, puedeEditar }: { reporte: Re
       </div>
 
       {grupoAbierto && (
-        <PanelAlumnos grupo={grupoAbierto} puedeEditar={puedeEditar} onCerrar={() => setGrupoAbierto(null)} />
+        <PanelAlumnos
+          grupo={grupoAbierto}
+          fecha={reporte.fecha}
+          puedeEditar={puedeEditar}
+          onCerrar={() => setGrupoAbierto(null)}
+        />
       )}
     </div>
   );
