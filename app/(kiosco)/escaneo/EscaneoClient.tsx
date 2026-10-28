@@ -321,7 +321,7 @@ export default function EscaneoClient() {
       <div className="grid grid-cols-1 gap-6">
 
         {/* Histórico reciente */}
-        <div className="flex flex-col rounded-2xl bg-white p-5 shadow-sm">
+        <div className="flex flex-col rounded-2xl bg-white p-5 text-gardner-gris shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gardner-gris">Últimos registrados</h2>
             <button
@@ -390,7 +390,7 @@ export default function EscaneoClient() {
           onClick={() => setBuscarAbierto(false)}
         >
           <div
-            className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+            className="w-full max-w-md overflow-hidden rounded-2xl bg-white text-gardner-gris shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 border-b border-gardner-gris/10 p-4">
@@ -401,7 +401,11 @@ export default function EscaneoClient() {
                 value={termino}
                 onChange={(e) => setTermino(e.target.value)}
                 placeholder="Buscar alumno por nombre…"
-                className="flex-1 text-sm outline-none"
+                // El layout del kiosco es text-white (fondo azul). Este panel
+                // va sobre tarjeta blanca, así que el color se fija aquí: sin
+                // esto el texto que se escribe sale blanco sobre blanco y
+                // parece que el campo no recibe nada.
+                className="flex-1 bg-transparent text-sm text-gardner-gris outline-none placeholder:text-gardner-gris/45"
               />
               <button
                 onClick={() => setBuscarAbierto(false)}
